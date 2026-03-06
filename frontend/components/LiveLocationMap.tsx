@@ -14,6 +14,8 @@ interface LiveLocationMapProps {
     borrowerLocation?: GeoJSONPoint;
     ownerName: string;
     lastUpdated: Date;
+    borrowerName?: string;
+    borrowerAvatar?: string;
 }
 
 export function LiveLocationMap({
@@ -22,7 +24,9 @@ export function LiveLocationMap({
     ownerLocation,
     borrowerLocation,
     ownerName,
-    lastUpdated
+    lastUpdated,
+    borrowerName,
+    borrowerAvatar
 }: LiveLocationMapProps) {
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<L.Map | null>(null);
@@ -49,9 +53,11 @@ export function LiveLocationMap({
     useEffect(() => {
         if (!isOpen || !mapRef.current || mapInstanceRef.current) return;
 
+        const ownerLoc = ownerLocation as any;
+        const ownerCoords = ownerLoc.coordinates || (ownerLoc.lng !== undefined && ownerLoc.lat !== undefined ? [ownerLoc.lng, ownerLoc.lat] : [80.4365, 16.3067]);
         const center: [number, number] = [
-            ownerLocation.coordinates[1],
-            ownerLocation.coordinates[0]
+            ownerCoords[1] || 16.3067,
+            ownerCoords[0] || 80.4365
         ];
 
         const map = L.map(mapRef.current, {
@@ -104,30 +110,46 @@ export function LiveLocationMap({
 
         // Borrower marker if available
         if (borrowerLocation) {
+            const borrowerLoc = borrowerLocation as any;
+            const borrowerCoords = borrowerLoc.coordinates || (borrowerLoc.lng !== undefined && borrowerLoc.lat !== undefined ? [borrowerLoc.lng, borrowerLoc.lat] : [80.4365, 16.3067]);
             const yourPosition: [number, number] = [
-                borrowerLocation.coordinates[1],
-                borrowerLocation.coordinates[0]
+                borrowerCoords[1] || 16.3067,
+                borrowerCoords[0] || 80.4365
             ];
+
+            const imageHtml = borrowerAvatar
+              ? `<img src="${borrowerAvatar}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />`
+              : borrowerName
+                ? `<div style="width: 100%; height: 100%; background: #166534; display: flex; align-items: center; justify-content: center; font-weight: 600; color: white; border-radius: 50%; font-size: 14px;">${borrowerName.charAt(0).toUpperCase()}</div>`
+                : `<div style="width: 100%; height: 100%; background: #166534; border-radius: 50%;"></div>`;
 
             const borrowerIcon = L.divIcon({
                 className: 'borrower-location-marker',
                 html: `
-          <div style="
-            width: 20px;
-            height: 20px;
-            background: #166534;
-            border: 3px solid white;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          "></div>
+          <div style="position: relative;">
+            <div style="
+              width: 32px;
+              height: 32px;
+              background: white;
+              border: 3px solid white;
+              border-radius: 50%;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+            ">
+              ${imageHtml}
+            </div>
+          </div>
         `,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
             });
 
             L.marker(yourPosition, { icon: borrowerIcon })
                 .addTo(map)
-                .bindPopup('<b>You</b><br>Your location');
+                .bindPopup(`<b>${borrowerName || 'You'}</b><br>Your location`);
 
             // Fit bounds to show both markers
             map.fitBounds([center, yourPosition], { padding: [50, 50] });

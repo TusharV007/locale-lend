@@ -1,10 +1,9 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { Home, Search, PlusCircle, MessageCircle, User, Bell, LogOut, Package } from 'lucide-react';
+import { Search, PlusCircle, MessageCircle, User, LogOut, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Image from 'next/image';
 import {
@@ -15,9 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { fetchUserRequests } from '@/lib/db';
-
-// ... imports
+import { NotificationDropdown } from '@/components/NotificationDropdown';
 
 interface NavbarProps {
   className?: string;
@@ -28,26 +25,6 @@ interface NavbarProps {
 export function Navbar({ className, onAddItemClick, onSearch }: NavbarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const [notificationCount, setNotificationCount] = useState(0);
-
-  // Poll for notifications (pending incoming requests)
-  useEffect(() => {
-    if (!user) return;
-
-    const checkNotifications = async () => {
-      try {
-        const requests = await fetchUserRequests(user.uid);
-        const pending = requests.filter((r: any) => r.lenderId === user.uid && r.status === 'pending');
-        setNotificationCount(pending.length);
-      } catch (error) {
-        // Silently fail
-      }
-    };
-
-    checkNotifications();
-    const interval = setInterval(checkNotifications, 15000);
-    return () => clearInterval(interval);
-  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -127,18 +104,8 @@ export function Navbar({ className, onAddItemClick, onSearch }: NavbarProps) {
 
           {/* ... User Actions */}
           <div className="flex items-center gap-3">
-            {/* ... notification and profile buttons (existing code) */}
-            <button
-              className="relative p-2 rounded-full hover:bg-secondary transition-colors"
-              onClick={() => router.push('/messages')}
-            >
-              <Bell className="w-5 h-5 text-muted-foreground" />
-              {notificationCount > 0 && (
-                <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
-                  {notificationCount}
-                </span>
-              )}
-            </button>
+            {/* Real-time Notification Dropdown */}
+            <NotificationDropdown />
 
             {/* Profile Dropdown */}
             <DropdownMenu>

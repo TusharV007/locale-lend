@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { Navbar } from '@/components/Navbar';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { ItemCard } from '@/components/ItemCard';
-import { Grid3x3, List, SlidersHorizontal, MapPin, Clock, Package, Search as SearchIcon, X } from 'lucide-react';
+import { Grid3x3, List, SlidersHorizontal, Package, Search as SearchIcon, X } from 'lucide-react';
 import { fetchItems } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Item, ItemCategory, GeoJSONPoint } from '@/types';
@@ -49,24 +49,27 @@ function SearchPageContent() {
     const fetchSearchResults = async () => {
         setLoading(true);
         try {
-            const results = await fetchItems(50, query);
+            // fetchItems now returns PaginatedItems — destructure .items
+            const result = await fetchItems(50, query);
 
-            // Calculate distances
-            const userPos: GeoJSONPoint = DEFAULT_USER_LOCATION; // You can get real location here
-            const resultsWithDistance = results.map(item => {
+            const userPos: GeoJSONPoint = DEFAULT_USER_LOCATION;
+            const resultsWithDistance = result.items.map(item => {
                 if (!item.location) return { ...item, distance: 0 };
+                
+                const itemLocation = item.location as any;
+                const targetCoords = itemLocation.coordinates || (itemLocation.lng !== undefined && itemLocation.lat !== undefined ? [itemLocation.lng, itemLocation.lat] : null);
+                if (!targetCoords || targetCoords.length < 2 || targetCoords[1] === undefined) return { ...item, distance: 0 };
 
                 const R = 6371e3;
                 const lat1 = userPos.coordinates[1] * Math.PI / 180;
-                const lat2 = item.location.coordinates[1] * Math.PI / 180;
-                const dLat = (item.location.coordinates[1] - userPos.coordinates[1]) * Math.PI / 180;
-                const dLon = (item.location.coordinates[0] - userPos.coordinates[0]) * Math.PI / 180;
+                const lat2 = targetCoords[1] * Math.PI / 180;
+                const dLat = (targetCoords[1] - userPos.coordinates[1]) * Math.PI / 180;
+                const dLon = (targetCoords[0] - userPos.coordinates[0]) * Math.PI / 180;
 
-                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                const a = Math.sin(dLat / 2) ** 2 +
                     Math.cos(lat1) * Math.cos(lat2) *
-                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                const dist = Math.floor(R * c);
+                    Math.sin(dLon / 2) ** 2;
+                const dist = Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 
                 return { ...item, distance: dist };
             });
@@ -197,7 +200,6 @@ function SearchPageContent() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {/* Sort Dropdown */}
                         <div className="flex items-center gap-2 text-xs">
                             <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
                             <select
@@ -211,7 +213,6 @@ function SearchPageContent() {
                             </select>
                         </div>
 
-                        {/* View Toggle */}
                         <div className="flex border border-border rounded-lg overflow-hidden">
                             <button
                                 onClick={() => setViewMode('grid')}
@@ -260,9 +261,7 @@ function SearchPageContent() {
                         className="text-center py-16 bg-card border rounded-xl"
                     >
                         <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                        <h3 className="text-lg font-semibold text-foreground mb-2">
-                            No results found
-                        </h3>
+                        <h3 className="text-lg font-semibold text-foreground mb-2">No results found</h3>
                         <p className="text-muted-foreground mb-6">
                             Try different keywords or browse all categories
                         </p>
@@ -299,7 +298,6 @@ function SearchPageContent() {
         </div>
     );
 }
-
 
 export default function SearchPage() {
     return (

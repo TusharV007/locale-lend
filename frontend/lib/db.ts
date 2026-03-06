@@ -12,27 +12,63 @@ import {
     limit,
     Timestamp,
     type DocumentData,
+    type QueryDocumentSnapshot,
     or,
     onSnapshot,
-    deleteDoc
+    deleteDoc,
+    startAfter,
+    writeBatch,
 } from "firebase/firestore";
-import type { Item, GeoJSONPoint } from "@/types";
+import type { Item, GeoJSONPoint, Payment, Request, User } from "@/types";
 
 const ITEMS_COLLECTION = "items";
 const REQUESTS_COLLECTION = "requests";
+const MESSAGES_SUBCOLLECTION = "messages";
+const NOTIFICATIONS_COLLECTION = "notifications";
+const PAYMENTS_COLLECTION = "payments";
+
+// Helper to safely parse any date format (Timestamp, Date, number, or string) from Firestore
+function parseDate(val: any): Date {
+    if (!val) return new Date();
+    if (typeof val.toDate === 'function') return val.toDate();
+    if (val instanceof Date) return val;
+    if (typeof val === 'number') return new Date(val);
+    try {
+        return new Date(val);
+    } catch (e) {
+        return new Date();
+    }
+}
+
+// ============================================
+// ITEM FUNCTIONS
+// ============================================
 
 export const addItem = async (item: Omit<Item, "id" | "createdAt" | "distance" | "status" | "borrowCount">) => {
     try {
         const docRef = await addDoc(collection(db, ITEMS_COLLECTION), {
             ...item,
             createdAt: Timestamp.now(),
-            distance: 0, // Calculated client-side
+            distance: 0,
             borrowCount: 0,
             status: 'available'
         });
         return docRef.id;
     } catch (error) {
         console.error("Error adding item:", error);
+        throw error;
+    }
+};
+
+export const updateItem = async (
+    itemId: string,
+    fields: Partial<{ title: string; description: string; category: string; images: string[]; rentalPricePerDay: number; location: GeoJSONPoint }>
+) => {
+    try {
+        const docRef = doc(db, ITEMS_COLLECTION, itemId);
+        await updateDoc(docRef, fields);
+    } catch (error) {
+        console.error("Error updating item:", error);
         throw error;
     }
 };
@@ -49,73 +85,57 @@ export const updateItemStatus = async (itemId: string, status: 'available' | 'le
 
 /**
  * Cascade delete an item along with all related requests and messages
- * This ensures no orphaned data remains in borrower/lender accounts
- * 
- * @param itemId - The ID of the item to delete
  */
-export const deleteItem = async (itemId: string) => {
+export const deleteItem = async (itemId: string, userId: string) => {
     try {
         console.log(`Starting cascade delete for item: ${itemId}`);
-
-        // Step 1: Find all requests related to this item
-        const requestsQuery = query(
-            collection(db, REQUESTS_COLLECTION),
-            where("itemId", "==", itemId)
-        );
+        const requestsQuery = query(collection(db, REQUESTS_COLLECTION), where("itemId", "==", itemId), where("lenderId", "==", userId));
         const requestsSnapshot = await getDocs(requestsQuery);
 
-        console.log(`Found ${requestsSnapshot.size} related requests to delete`);
-
-        // Step 2: Delete all messages in each request (subcollection)
-        // and collect request delete promises
         const deletePromises: Promise<void>[] = [];
-
         for (const requestDoc of requestsSnapshot.docs) {
-            // Get messages subcollection
-            const messagesRef = collection(
-                db,
-                REQUESTS_COLLECTION,
-                requestDoc.id,
-                MESSAGES_SUBCOLLECTION
-            );
+            const messagesRef = collection(db, REQUESTS_COLLECTION, requestDoc.id, MESSAGES_SUBCOLLECTION);
             const messagesSnapshot = await getDocs(messagesRef);
-
-            // Delete each message
-            messagesSnapshot.docs.forEach(msgDoc => {
-                deletePromises.push(deleteDoc(msgDoc.ref));
-            });
-
-            // Add request deletion to promises
+            messagesSnapshot.docs.forEach(msgDoc => { deletePromises.push(deleteDoc(msgDoc.ref)); });
             deletePromises.push(deleteDoc(requestDoc.ref));
         }
-
-        // Step 3: Execute all deletions in parallel for better performance
         await Promise.all(deletePromises);
 
-        console.log(`Deleted ${deletePromises.length} related documents (requests + messages)`);
-
-        // Step 4: Delete the item itself
         const itemRef = doc(db, ITEMS_COLLECTION, itemId);
         await deleteDoc(itemRef);
-
-        console.log(`Successfully completed cascade delete for item: ${itemId}`);
+        console.log(`Successfully cascade deleted item: ${itemId}`);
     } catch (error) {
         console.error("Error in cascade delete:", error);
         throw error;
     }
 };
 
-export const fetchItems = async (limitCount = 20, searchQuery = ''): Promise<Item[]> => {
+// Cursor-based pagination result
+export interface PaginatedItems {
+    items: Item[];
+    lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+    hasMore: boolean;
+}
+
+export const fetchItems = async (
+    limitCount = 12,
+    searchQuery = '',
+    lastDoc: QueryDocumentSnapshot<DocumentData> | null = null
+): Promise<PaginatedItems> => {
     try {
         let q;
         if (searchQuery) {
-            // Basic "start with" search on title
-            // Note: Firestore is case-sensitive and simple. 
-            // For production, Algolia or similar is recommended.
             q = query(
                 collection(db, ITEMS_COLLECTION),
                 where('title', '>=', searchQuery),
                 where('title', '<=', searchQuery + '\uf8ff'),
+                limit(limitCount)
+            );
+        } else if (lastDoc) {
+            q = query(
+                collection(db, ITEMS_COLLECTION),
+                orderBy("createdAt", "desc"),
+                startAfter(lastDoc),
                 limit(limitCount)
             );
         } else {
@@ -127,46 +147,81 @@ export const fetchItems = async (limitCount = 20, searchQuery = ''): Promise<Ite
         }
 
         const querySnapshot = await getDocs(q);
-
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                // Convert Firestore Timestamp to Date if needed, 
-                // but Item interface uses Date. Firestore returns Timestamp objects.
-                // We need to convert them.
-                createdAt: data.createdAt?.toDate() || new Date(),
-                // Ensure other fields match interface
-            } as Item;
+        const items = querySnapshot.docs.map(d => {
+            const data = d.data();
+            return { id: d.id, ...data, createdAt: parseDate(data.createdAt) } as Item;
         });
+
+        const newLastDoc = querySnapshot.docs.length > 0 ? querySnapshot.docs[querySnapshot.docs.length - 1] : null;
+
+        return { items, lastDoc: newLastDoc, hasMore: querySnapshot.docs.length === limitCount };
     } catch (error) {
         console.error("Error fetching items:", error);
-        // If index is missing for orderBy, fallback to no order
         if ((error as any)?.code === 'failed-precondition') {
             console.warn("Missing index, fetching without sort");
             const fallbackQ = query(collection(db, ITEMS_COLLECTION), limit(limitCount));
             const snap = await getDocs(fallbackQ);
-            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item));
+            const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Item));
+            const newLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+            return { items, lastDoc: newLastDoc, hasMore: snap.docs.length === limitCount };
         }
         throw error;
     }
 };
 
-export const fetchUserItems = async (userId: string): Promise<Item[]> => {
+export interface PaginatedUserItems {
+    items: Item[];
+    lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+    hasMore: boolean;
+}
+
+export const fetchUserItems = async (
+    userId: string,
+    limitCount = 20,
+    lastDoc: QueryDocumentSnapshot<DocumentData> | null = null
+): Promise<PaginatedUserItems> => {
     try {
-        const q = query(collection(db, ITEMS_COLLECTION), where("owner.id", "==", userId));
+        let q;
+        if (lastDoc) {
+            q = query(
+                collection(db, ITEMS_COLLECTION),
+                where("owner.id", "==", userId),
+                orderBy("createdAt", "desc"),
+                startAfter(lastDoc),
+                limit(limitCount)
+            );
+        } else {
+            q = query(
+                collection(db, ITEMS_COLLECTION),
+                where("owner.id", "==", userId),
+                orderBy("createdAt", "desc"),
+                limit(limitCount)
+            );
+        }
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate() || new Date()
+        const items = querySnapshot.docs.map(d => ({
+            id: d.id, ...d.data(), createdAt: parseDate(d.data().createdAt)
         } as Item));
+        const newLastDoc = querySnapshot.docs.length > 0 ? querySnapshot.docs[querySnapshot.docs.length - 1] : null;
+        return { items, lastDoc: newLastDoc, hasMore: querySnapshot.docs.length === limitCount };
     } catch (error) {
         console.error("Error fetching user items:", error);
-        throw error;
+        // Fallback without orderBy if composite index is missing
+        try {
+            const fallbackQ = query(collection(db, ITEMS_COLLECTION), where("owner.id", "==", userId), limit(limitCount));
+            const snap = await getDocs(fallbackQ);
+            const items = snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: parseDate(d.data().createdAt) } as Item));
+            const newLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+            return { items, lastDoc: newLastDoc, hasMore: snap.docs.length === limitCount };
+        } catch (e) {
+            throw e;
+        }
     }
 };
+
+// ============================================
+// REQUEST FUNCTIONS
+// ============================================
 
 export interface RequestData {
     id: string;
@@ -178,16 +233,30 @@ export interface RequestData {
     lenderName: string;
     message: string;
     status: 'pending' | 'accepted' | 'rejected';
+    paymentStatus?: 'unpaid' | 'paid';
+    rentalPricePerDay?: number;
     createdAt: Date;
 }
 
-export const createRequest = async (request: Omit<RequestData, "id" | "createdAt" | "status">) => {
+export const createRequest = async (request: Omit<RequestData, "id" | "createdAt" | "status" | "paymentStatus">) => {
     try {
         const docRef = await addDoc(collection(db, REQUESTS_COLLECTION), {
             ...request,
             status: 'pending',
+            paymentStatus: 'unpaid',
             createdAt: Timestamp.now()
         });
+
+        // Notify lender of new request
+        await createNotification({
+            userId: request.lenderId,
+            type: 'new_request',
+            title: 'New Borrow Request',
+            message: `${request.borrowerName} wants to borrow "${request.itemTitle}"`,
+            requestId: docRef.id,
+            itemTitle: request.itemTitle,
+        });
+
         return docRef.id;
     } catch (error) {
         console.error("Error creating request:", error);
@@ -197,39 +266,26 @@ export const createRequest = async (request: Omit<RequestData, "id" | "createdAt
 
 export const fetchUserRequests = async (userId: string): Promise<RequestData[]> => {
     try {
-        // Fetch where user is either borrower or lender
         const q = query(
             collection(db, REQUESTS_COLLECTION),
-            or(
-                where("borrowerId", "==", userId),
-                where("lenderId", "==", userId)
-            ),
+            or(where("borrowerId", "==", userId), where("lenderId", "==", userId)),
             orderBy("createdAt", "desc")
         );
-
         const querySnapshot = await getDocs(q);
-
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                createdAt: data.createdAt?.toDate() || new Date()
-            } as RequestData;
+        return querySnapshot.docs.map(d => {
+            const data = d.data();
+            return { id: d.id, ...data, createdAt: parseDate(data.createdAt) } as RequestData;
         });
     } catch (error) {
         console.error("Error fetching requests:", error);
-        // Fallback for missing index error
         if ((error as any)?.code === 'failed-precondition') {
             const qSimplified = query(
                 collection(db, REQUESTS_COLLECTION),
                 or(where("borrowerId", "==", userId), where("lenderId", "==", userId))
             );
             const snap = await getDocs(qSimplified);
-            return snap.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate() || new Date()
+            return snap.docs.map(d => ({
+                id: d.id, ...d.data(), createdAt: parseDate(d.data().createdAt)
             } as RequestData));
         }
         throw error;
@@ -241,24 +297,33 @@ export const updateRequestStatus = async (requestId: string, status: 'accepted' 
         const docRef = doc(db, REQUESTS_COLLECTION, requestId);
         await updateDoc(docRef, { status });
 
-        // If accepted, increment the item's borrow count
-        if (status === 'accepted') {
-            // First get the request to find the itemId
-            const requestDoc = await getDoc(docRef);
-            if (requestDoc.exists()) {
-                const requestData = requestDoc.data();
-                const itemId = requestData.itemId;
+        // Fetch request data to build notification
+        const requestDoc = await getDoc(docRef);
+        if (requestDoc.exists()) {
+            const requestData = requestDoc.data();
+            const itemId = requestData.itemId;
 
-                if (itemId) {
-                    const itemRef = doc(db, ITEMS_COLLECTION, itemId);
-                    const itemDoc = await getDoc(itemRef);
-
-                    if (itemDoc.exists()) {
-                        const currentCount = itemDoc.data().borrowCount || 0;
-                        await updateDoc(itemRef, { borrowCount: currentCount + 1 });
-                    }
+            // Increment borrowCount on accept
+            if (status === 'accepted' && itemId) {
+                const itemRef = doc(db, ITEMS_COLLECTION, itemId);
+                const itemDoc = await getDoc(itemRef);
+                if (itemDoc.exists()) {
+                    const currentCount = itemDoc.data().borrowCount || 0;
+                    await updateDoc(itemRef, { borrowCount: currentCount + 1 });
                 }
             }
+
+            // Notify borrower
+            await createNotification({
+                userId: requestData.borrowerId,
+                type: status === 'accepted' ? 'request_accepted' : 'request_rejected',
+                title: status === 'accepted' ? '🎉 Request Accepted!' : 'Request Rejected',
+                message: status === 'accepted'
+                    ? `Your request for "${requestData.itemTitle}" was accepted by ${requestData.lenderName}. Please complete payment.`
+                    : `Your request for "${requestData.itemTitle}" was declined by ${requestData.lenderName}.`,
+                requestId,
+                itemTitle: requestData.itemTitle,
+            });
         }
     } catch (error) {
         console.error("Error updating request status:", error);
@@ -266,8 +331,135 @@ export const updateRequestStatus = async (requestId: string, status: 'accepted' 
     }
 };
 
-// Chat Functions
-const MESSAGES_SUBCOLLECTION = "messages";
+// ============================================
+// LENDING / BORROWING HISTORY FUNCTIONS
+// ============================================
+
+export interface HistoryItem {
+    requestId: string;
+    itemId: string;
+    itemTitle: string;
+    itemImage?: string;
+    otherPartyName: string;
+    status: 'pending' | 'accepted' | 'rejected';
+    paymentStatus?: 'unpaid' | 'paid';
+    rentalPricePerDay?: number;
+    createdAt: Date;
+}
+
+export const fetchUserLendingHistory = async (userId: string): Promise<HistoryItem[]> => {
+    try {
+        const q = query(
+            collection(db, REQUESTS_COLLECTION),
+            where("lenderId", "==", userId),
+            orderBy("createdAt", "desc"),
+            limit(50)
+        );
+        const snapshot = await getDocs(q);
+        const results: HistoryItem[] = [];
+
+        for (const d of snapshot.docs) {
+            const data = d.data();
+            // Fetch item image
+            let itemImage: string | undefined;
+            try {
+                const itemDoc = await getDoc(doc(db, ITEMS_COLLECTION, data.itemId));
+                if (itemDoc.exists()) {
+                    itemImage = itemDoc.data().images?.[0];
+                }
+            } catch { /* ignore */ }
+
+            results.push({
+                requestId: d.id,
+                itemId: data.itemId,
+                itemTitle: data.itemTitle,
+                itemImage,
+                otherPartyName: data.borrowerName,
+                status: data.status,
+                paymentStatus: data.paymentStatus,
+                rentalPricePerDay: data.rentalPricePerDay,
+                createdAt: parseDate(data.createdAt),
+            });
+        }
+        return results;
+    } catch (error) {
+        console.error("Error fetching lending history:", error);
+        // Fallback without orderBy
+        try {
+            const q2 = query(collection(db, REQUESTS_COLLECTION), where("lenderId", "==", userId), limit(50));
+            const snap = await getDocs(q2);
+            return snap.docs.map(d => {
+                const data = d.data();
+                return {
+                    requestId: d.id, itemId: data.itemId, itemTitle: data.itemTitle,
+                    otherPartyName: data.borrowerName, status: data.status,
+                    paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay,
+                    createdAt: parseDate(data.createdAt)
+                } as HistoryItem;
+            });
+        } catch (e) {
+            throw e;
+        }
+    }
+};
+
+export const fetchUserBorrowingHistory = async (userId: string): Promise<HistoryItem[]> => {
+    try {
+        const q = query(
+            collection(db, REQUESTS_COLLECTION),
+            where("borrowerId", "==", userId),
+            orderBy("createdAt", "desc"),
+            limit(50)
+        );
+        const snapshot = await getDocs(q);
+        const results: HistoryItem[] = [];
+
+        for (const d of snapshot.docs) {
+            const data = d.data();
+            let itemImage: string | undefined;
+            try {
+                const itemDoc = await getDoc(doc(db, ITEMS_COLLECTION, data.itemId));
+                if (itemDoc.exists()) {
+                    itemImage = itemDoc.data().images?.[0];
+                }
+            } catch { /* ignore */ }
+
+            results.push({
+                requestId: d.id,
+                itemId: data.itemId,
+                itemTitle: data.itemTitle,
+                itemImage,
+                otherPartyName: data.lenderName,
+                status: data.status,
+                paymentStatus: data.paymentStatus,
+                rentalPricePerDay: data.rentalPricePerDay,
+                createdAt: parseDate(data.createdAt),
+            });
+        }
+        return results;
+    } catch (error) {
+        console.error("Error fetching borrowing history:", error);
+        try {
+            const q2 = query(collection(db, REQUESTS_COLLECTION), where("borrowerId", "==", userId), limit(50));
+            const snap = await getDocs(q2);
+            return snap.docs.map(d => {
+                const data = d.data();
+                return {
+                    requestId: d.id, itemId: data.itemId, itemTitle: data.itemTitle,
+                    otherPartyName: data.lenderName, status: data.status,
+                    paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay,
+                    createdAt: parseDate(data.createdAt)
+                } as HistoryItem;
+            });
+        } catch (e) {
+            throw e;
+        }
+    }
+};
+
+// ============================================
+// CHAT / MESSAGE FUNCTIONS
+// ============================================
 
 export interface Message {
     id: string;
@@ -280,12 +472,7 @@ export interface Message {
 export const sendMessage = async (requestId: string, senderId: string, content: string) => {
     try {
         const messagesRef = collection(db, REQUESTS_COLLECTION, requestId, MESSAGES_SUBCOLLECTION);
-        await addDoc(messagesRef, {
-            requestId,
-            senderId,
-            content,
-            createdAt: Timestamp.now()
-        });
+        await addDoc(messagesRef, { requestId, senderId, content, createdAt: Timestamp.now() });
     } catch (error) {
         console.error("Error sending message:", error);
         throw error;
@@ -295,24 +482,122 @@ export const sendMessage = async (requestId: string, senderId: string, content: 
 export const subscribeToMessages = (requestId: string, callback: (messages: Message[]) => void) => {
     const messagesRef = collection(db, REQUESTS_COLLECTION, requestId, MESSAGES_SUBCOLLECTION);
     const q = query(messagesRef, orderBy("createdAt", "asc"));
-
     return onSnapshot(q, (snapshot) => {
-        const messages = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate() || new Date()
+        const messages = snapshot.docs.map(d => ({
+            id: d.id, ...d.data(), createdAt: parseDate(d.data().createdAt)
         } as Message));
         callback(messages);
     });
 };
 
 // ============================================
+// PAYMENT FUNCTIONS
+// ============================================
+
+export const createPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'status'>) => {
+    try {
+        const docRef = await addDoc(collection(db, PAYMENTS_COLLECTION), {
+            ...payment,
+            status: 'paid',
+            currency: 'INR',
+            createdAt: Timestamp.now()
+        });
+        // Update request paymentStatus
+        const requestRef = doc(db, REQUESTS_COLLECTION, payment.requestId);
+        await updateDoc(requestRef, { paymentStatus: 'paid' });
+        return docRef.id;
+    } catch (error) {
+        console.error("Error creating payment:", error);
+        throw error;
+    }
+};
+
+export const fetchUserPayments = async (userId: string): Promise<Payment[]> => {
+    try {
+        const q = query(
+            collection(db, PAYMENTS_COLLECTION),
+            or(where("payerId", "==", userId), where("receiverId", "==", userId)),
+            orderBy("createdAt", "desc")
+        );
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({
+            id: d.id, ...d.data(), createdAt: parseDate(d.data().createdAt)
+        } as Payment));
+    } catch (error) {
+        console.error("Error fetching payments:", error);
+        return [];
+    }
+};
+
+// ============================================
+// NOTIFICATION FUNCTIONS
+// ============================================
+
+export interface NotificationData {
+    id: string;
+    userId: string;
+    type: 'new_request' | 'request_accepted' | 'request_rejected';
+    title: string;
+    message: string;
+    requestId: string;
+    itemTitle: string;
+    read: boolean;
+    createdAt: Date;
+}
+
+export const createNotification = async (data: Omit<NotificationData, 'id' | 'read' | 'createdAt'>) => {
+    try {
+        await addDoc(collection(db, NOTIFICATIONS_COLLECTION), {
+            ...data,
+            read: false,
+            createdAt: Timestamp.now()
+        });
+    } catch (error) {
+        console.error("Error creating notification:", error);
+        // Don't throw — notifications are non-critical
+    }
+};
+
+export const subscribeToNotifications = (
+    userId: string,
+    callback: (notifications: NotificationData[]) => void
+) => {
+    const q = query(
+        collection(db, NOTIFICATIONS_COLLECTION),
+        where("userId", "==", userId),
+        orderBy("createdAt", "desc"),
+        limit(20)
+    );
+    return onSnapshot(q, (snapshot) => {
+        const notifications = snapshot.docs.map(d => ({
+            id: d.id, ...d.data(), createdAt: parseDate(d.data().createdAt)
+        } as NotificationData));
+        callback(notifications);
+    }, (error) => {
+        console.error("Notification subscription error:", error);
+    });
+};
+
+export const markAllNotificationsRead = async (userId: string) => {
+    try {
+        const q = query(
+            collection(db, NOTIFICATIONS_COLLECTION),
+            where("userId", "==", userId),
+            where("read", "==", false)
+        );
+        const snap = await getDocs(q);
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.update(d.ref, { read: true }));
+        await batch.commit();
+    } catch (error) {
+        console.error("Error marking notifications read:", error);
+    }
+};
+
+// ============================================
 // LOCATION SHARING FUNCTIONS
 // ============================================
 
-/**
- * Enable location sharing for an approved request
- */
 export const enableLocationSharing = async (requestId: string) => {
     try {
         const requestRef = doc(db, REQUESTS_COLLECTION, requestId);
@@ -326,9 +611,6 @@ export const enableLocationSharing = async (requestId: string) => {
     }
 };
 
-/**
- * Update shared location coordinates
- */
 export const updateSharedLocation = async (requestId: string, location: GeoJSONPoint) => {
     try {
         const requestRef = doc(db, REQUESTS_COLLECTION, requestId);
@@ -342,9 +624,6 @@ export const updateSharedLocation = async (requestId: string, location: GeoJSONP
     }
 };
 
-/**
- * Disable location sharing
- */
 export const disableLocationSharing = async (requestId: string) => {
     try {
         const requestRef = doc(db, REQUESTS_COLLECTION, requestId);
@@ -357,3 +636,5 @@ export const disableLocationSharing = async (requestId: string) => {
         throw error;
     }
 };
+
+

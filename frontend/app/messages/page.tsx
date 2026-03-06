@@ -5,55 +5,34 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Navbar } from '@/components/Navbar';
 import { ChatWindow } from '@/components/ChatWindow';
 import { AddItemModal } from '@/components/AddItemModal';
+import { PaymentModal } from '@/components/PaymentModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { MessageCircle, Check, X, Clock } from 'lucide-react';
+import { MessageCircle, Check, X, Clock, IndianRupee } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
-import { fetchUserRequests, updateRequestStatus } from '@/lib/db';
-
-interface Request {
-    id: string;
-    itemId: string;
-    itemTitle: string;
-    borrowerId: string;
-    borrowerName: string;
-    lenderId: string;
-    lenderName: string;
-    message: string;
-    status: 'pending' | 'accepted' | 'rejected';
-    createdAt: Date;
-}
+import { fetchUserRequests, updateRequestStatus, type RequestData } from '@/lib/db';
 
 export default function MessagesPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
-    const [requests, setRequests] = useState<Request[]>([]);
+    const [requests, setRequests] = useState<RequestData[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+    const [selectedRequest, setSelectedRequest] = useState<RequestData | null>(null);
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+    const [paymentRequest, setPaymentRequest] = useState<RequestData | null>(null);
 
     useEffect(() => {
-        if (!authLoading && !user) {
-            router.push('/auth');
-        }
+        if (!authLoading && !user) router.push('/auth');
     }, [user, authLoading, router]);
 
     const fetchRequests = async () => {
         if (!user) return;
         try {
             const data = await fetchUserRequests(user.uid);
-            // Map Firestore data to local Request interface if needed (though they should align mostly)
-            // Local Request interface uses 'createdAt: string', but db returns Date. 
-            // We need to map it or update local interface.
-            const mappedData = data.map(r => ({
-                ...r,
-                createdAt: r.createdAt.toISOString()
-            })) as unknown as Request[];
-
-            setRequests(mappedData);
+            setRequests(data);
         } catch (error) {
             console.error('Failed to fetch requests', error);
         } finally {
@@ -64,8 +43,6 @@ export default function MessagesPage() {
     useEffect(() => {
         if (user) {
             fetchRequests();
-            // Polling is less ideal with Firestore (realtime listeners are better), 
-            // but keeping simple polling for now to match structure.
             const interval = setInterval(fetchRequests, 10000);
             return () => clearInterval(interval);
         }
@@ -109,7 +86,7 @@ export default function MessagesPage() {
                         <TabsTrigger value="incoming">
                             Inbox ({incomingRequests.filter(r => r.status === 'pending').length})
                         </TabsTrigger>
-                        <TabsTrigger value="outgoing">My Requests</TabsTrigger>
+                        <TabsTrigger value="outgoing">My Requests ({outgoingRequests.length})</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="incoming" className="space-y-4">
@@ -121,8 +98,10 @@ export default function MessagesPage() {
                                     key={req.id}
                                     request={req}
                                     isIncoming={true}
+                                    currentUserId={user.uid}
                                     onStatusUpdate={handleStatusUpdate}
                                     onChatOpen={() => setSelectedRequest(req)}
+                                    onPayment={() => setPaymentRequest(req)}
                                 />
                             ))
                         )}
@@ -137,8 +116,10 @@ export default function MessagesPage() {
                                     key={req.id}
                                     request={req}
                                     isIncoming={false}
+                                    currentUserId={user.uid}
                                     onStatusUpdate={handleStatusUpdate}
                                     onChatOpen={() => setSelectedRequest(req)}
+                                    onPayment={() => setPaymentRequest(req)}
                                 />
                             ))
                         )}
@@ -155,6 +136,23 @@ export default function MessagesPage() {
                 )}
             </AnimatePresence>
 
+            {paymentRequest && (
+                <PaymentModal
+                    isOpen={!!paymentRequest}
+                    onClose={() => setPaymentRequest(null)}
+                    requestId={paymentRequest.id}
+                    itemTitle={paymentRequest.itemTitle}
+                    itemId={paymentRequest.itemId}
+                    lenderId={paymentRequest.lenderId}
+                    lenderName={paymentRequest.lenderName}
+                    rentalPricePerDay={paymentRequest.rentalPricePerDay}
+                    onSuccess={() => {
+                        setPaymentRequest(null);
+                        fetchRequests();
+                    }}
+                />
+            )}
+
             <AddItemModal
                 isOpen={isAddItemModalOpen}
                 onClose={() => setIsAddItemModalOpen(false)}
@@ -165,88 +163,115 @@ export default function MessagesPage() {
             />
         </div>
     );
-};
+}
 
 const RequestCard = ({
     request,
     isIncoming,
+    currentUserId,
     onStatusUpdate,
-    onChatOpen
+    onChatOpen,
+    onPayment,
 }: {
-    request: Request;
+    request: RequestData;
     isIncoming: boolean;
+    currentUserId: string;
     onStatusUpdate: (id: string, status: 'accepted' | 'rejected') => void;
     onChatOpen: () => void;
-}) => (
-    <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card border rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-start justify-between gap-4"
-    >
-        <div className="flex-1 w-full">
-            <div className="flex items-center gap-2 mb-1">
-                <Badge variant={
-                    request.status === 'accepted' ? 'default' :
-                        request.status === 'rejected' ? 'destructive' : 'secondary'
-                }>
-                    {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                </Badge>
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {new Date(request.createdAt).toLocaleDateString()}
-                </span>
-            </div>
+    onPayment: () => void;
+}) => {
+    const showPayButton = !isIncoming
+        && request.status === 'accepted'
+        && request.paymentStatus !== 'paid';
 
-            <h3 className="font-semibold text-foreground">
-                {request.itemTitle}
-            </h3>
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card border rounded-xl p-4 shadow-sm"
+        >
+            <div className="flex flex-col md:flex-row items-start justify-between gap-4">
+                <div className="flex-1 w-full">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <Badge variant={
+                            request.status === 'accepted' ? 'default' :
+                                request.status === 'rejected' ? 'destructive' : 'secondary'
+                        }>
+                            {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                        </Badge>
 
-            <p className="text-sm text-muted-foreground mt-1">
-                {isIncoming ? (
-                    <>From: <span className="font-medium text-foreground">{request.borrowerName}</span></>
-                ) : (
-                    <>To: <span className="font-medium text-foreground">{request.lenderName}</span></>
-                )}
-            </p>
+                        {request.paymentStatus === 'paid' && (
+                            <Badge variant="outline" className="text-green-600 border-green-300 text-xs">
+                                ✓ Paid
+                            </Badge>
+                        )}
 
-            {request.message && (
-                <div className="mt-3 bg-secondary/50 p-3 rounded-lg text-sm italic text-muted-foreground">
-                    "{request.message}"
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(request.createdAt).toLocaleDateString()}
+                        </span>
+                    </div>
+
+                    <h3 className="font-semibold text-foreground">{request.itemTitle}</h3>
+
+                    <p className="text-sm text-muted-foreground mt-1">
+                        {isIncoming
+                            ? <><span className="text-foreground font-medium">{request.borrowerName}</span> wants to borrow this</>
+                            : <>To: <span className="font-medium text-foreground">{request.lenderName}</span></>
+                        }
+                    </p>
+
+                    {request.rentalPricePerDay !== undefined && request.rentalPricePerDay > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                            <IndianRupee className="w-3 h-3" />
+                            {request.rentalPricePerDay}/day rental
+                        </p>
+                    )}
+
+                    {request.message && (
+                        <div className="mt-3 bg-secondary/50 p-3 rounded-lg text-sm italic text-muted-foreground">
+                            "{request.message}"
+                        </div>
+                    )}
                 </div>
-            )}
-        </div>
 
-        <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto mt-2 md:mt-0">
-            <Button
-                size="sm"
-                variant="outline"
-                onClick={onChatOpen}
-                className="w-full md:w-auto"
-            >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Chat
-            </Button>
+                <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto mt-2 md:mt-0 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={onChatOpen} className="flex-1 md:flex-none">
+                        <MessageCircle className="w-4 h-4 mr-2" /> Chat
+                    </Button>
 
-            {isIncoming && request.status === 'pending' && (
-                <>
-                    <Button
-                        size="sm"
-                        variant="default"
-                        className="bg-green-600 hover:bg-green-700 text-white w-full md:w-auto"
-                        onClick={() => onStatusUpdate(request.id, 'accepted')}
-                    >
-                        <Check className="w-4 h-4 mr-1" /> Accept
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="destructive"
-                        className="w-full md:w-auto"
-                        onClick={() => onStatusUpdate(request.id, 'rejected')}
-                    >
-                        <X className="w-4 h-4 mr-1" /> Reject
-                    </Button>
-                </>
-            )}
-        </div>
-    </motion.div>
-);
+                    {showPayButton && (
+                        <Button
+                            size="sm"
+                            onClick={onPayment}
+                            className="flex-1 md:flex-none bg-green-600 hover:bg-green-700 text-white"
+                        >
+                            <IndianRupee className="w-4 h-4 mr-1" />
+                            {request.rentalPricePerDay ? `Pay ₹${request.rentalPricePerDay}` : 'Confirm Borrow'}
+                        </Button>
+                    )}
+
+                    {isIncoming && request.status === 'pending' && (
+                        <>
+                            <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white flex-1 md:flex-none"
+                                onClick={() => onStatusUpdate(request.id, 'accepted')}
+                            >
+                                <Check className="w-4 h-4 mr-1" /> Accept
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="destructive"
+                                className="flex-1 md:flex-none"
+                                onClick={() => onStatusUpdate(request.id, 'rejected')}
+                            >
+                                <X className="w-4 h-4 mr-1" /> Reject
+                            </Button>
+                        </>
+                    )}
+                </div>
+            </div>
+        </motion.div>
+    );
+};

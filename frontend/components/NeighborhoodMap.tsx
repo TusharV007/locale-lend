@@ -19,7 +19,7 @@ try {
 }
 
 // Custom marker icon creator
-const createCustomIcon = (category: string, avatarUrl?: string) => {
+const createCustomIcon = (category: string, avatarUrl?: string, ownerName?: string) => {
   const colors: Record<string, string> = {
     Tools: '#d97706',
     Electronics: '#3b82f6',
@@ -31,9 +31,12 @@ const createCustomIcon = (category: string, avatarUrl?: string) => {
   };
 
   const color = colors[category] || colors.Tools;
-  const imageHtml = avatarUrl
+  const isDummyAvatar = avatarUrl === 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80';
+  const imageHtml = avatarUrl && !isDummyAvatar
     ? `<img src="${avatarUrl}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />`
-    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+    : ownerName
+      ? `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 600; color: white; font-size: 16px;">${ownerName.charAt(0).toUpperCase()}</div>`
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
 
   return L.divIcon({
     className: 'custom-marker-wrapper',
@@ -53,33 +56,62 @@ const createCustomIcon = (category: string, avatarUrl?: string) => {
         ${imageHtml}
       </div>
     `,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -20],
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32],
   });
 };
 
 // User location marker
-const userLocationIcon = L.divIcon({
-  className: 'user-marker',
-  html: `
-    <div style="position: relative;">
-      <div style="
-        width: 20px;
-        height: 20px;
-        background: #166534;
-        border: 4px solid white;
-        border-radius: 50%;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      "></div>
-    </div>
-  `,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
-});
+const createUserLocationIcon = (avatarUrl?: string, name?: string) => {
+  const imageHtml = avatarUrl
+    ? `<img src="${avatarUrl}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />`
+    : name
+      ? `<div style="width: 100%; height: 100%; background: #166534; display: flex; align-items: center; justify-content: center; font-weight: 600; color: white; border-radius: 50%; font-size: 14px;">${name.charAt(0).toUpperCase()}</div>`
+      : `<div style="width: 100%; height: 100%; background: #166534; border-radius: 50%;"></div>`;
+
+  return L.divIcon({
+    className: 'user-marker',
+    html: `
+      <div style="position: relative;">
+        <div style="
+          width: 32px;
+          height: 32px;
+          background: white;
+          border: 3px solid white;
+          border-radius: 50%;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          position: relative;
+          z-index: 2;
+        ">
+          ${imageHtml}
+        </div>
+        <div class="user-location-pulse" style="
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 32px;
+          height: 32px;
+          background: rgba(22, 101, 52, 0.6);
+          border-radius: 50%;
+          z-index: 1;
+          pointer-events: none;
+        "></div>
+      </div>
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+  });
+};
 
 interface NeighborhoodMapProps {
   userLocation: GeoJSONPoint;
+  userAvatar?: string;
+  userName?: string;
   items: Item[];
   onItemSelect: (item: Item) => void;
   onRequestClick: (item: Item) => void;
@@ -93,6 +125,8 @@ interface NeighborhoodMapProps {
  */
 export function NeighborhoodMap({
   userLocation,
+  userAvatar,
+  userName,
   items,
   onItemSelect,
   onRequestClick,
@@ -116,10 +150,13 @@ export function NeighborhoodMap({
 
     userLocationRef.current = locationKey;
 
-    // Extract coordinates from userLocation prop
+    // Extract coordinates safely
+    const userLoc = userLocation as any;
+    const userCoords = userLoc.coordinates || (userLoc.lng !== undefined && userLoc.lat !== undefined ? [userLoc.lng, userLoc.lat] : [80.4365, 16.3067]);
+    
     const center: [number, number] = [
-      userLocation.coordinates[1], // latitude
-      userLocation.coordinates[0]  // longitude
+      userCoords[1] || 16.3067, // latitude
+      userCoords[0] || 80.4365  // longitude
     ];
 
     // Initialize map
@@ -136,7 +173,7 @@ export function NeighborhoodMap({
     }).addTo(map);
 
     // Add user location marker
-    L.marker(center, { icon: userLocationIcon })
+    L.marker(center, { icon: createUserLocationIcon(userAvatar, userName) })
       .addTo(map)
       .bindPopup(`
         <div style="padding: 8px; text-align: center;">
@@ -158,6 +195,7 @@ export function NeighborhoodMap({
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
         markersLayerRef.current = null;
+        userLocationRef.current = '';
       }
     };
   }, [userLocation]); // React to userLocation changes
@@ -170,12 +208,19 @@ export function NeighborhoodMap({
     markersLayer.clearLayers();
 
     items.forEach((item) => {
+      const itemLoc = item.location as any;
+      if (!itemLoc) return;
+      
+      // GeoJSON is [lng, lat], Leaflet wants [lat, lng]
+      const coords = itemLoc.coordinates || (itemLoc.lng !== undefined && itemLoc.lat !== undefined ? [itemLoc.lng, itemLoc.lat] : null);
+      if (!coords || coords.length < 2) return;
+
       const position: [number, number] = [
-        item.location.coordinates[1],
-        item.location.coordinates[0],
+        coords[1], // lat
+        coords[0], // lng
       ];
 
-      const marker = L.marker(position, { icon: createCustomIcon(item.category, item.owner.avatar) });
+      const marker = L.marker(position, { icon: createCustomIcon(item.category, item.owner?.avatar, item.owner?.name) });
 
       // Create popup content
       const popupContent = `

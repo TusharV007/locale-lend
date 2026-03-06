@@ -1,34 +1,36 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Navbar } from '@/components/Navbar';
 import { HeroSection } from '@/components/HeroSection';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { ItemCard } from '@/components/ItemCard';
-import { Grid3x3, List, SlidersHorizontal, TrendingUp, MapPin, Clock, Package } from 'lucide-react';
+import { Grid3x3, List, SlidersHorizontal, Package } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 const NeighborhoodMap = dynamic(() => import('@/components/NeighborhoodMap').then(mod => mod.NeighborhoodMap), {
   ssr: false,
-  loading: () => <div className="w-full h-[500px] bg-secondary animate-pulse rounded-2xl" />
+  loading: () => <div className="w-full h-[500px] bg-secondary animate-pulse rounded-2xl" />,
 });
 import { RequestModal } from '@/components/RequestModal';
 import { useStore } from '@/store/useStore';
-import { fetchNearbyItems as fetchMockNearbyItems, mockUsers, DEFAULT_USER_LOCATION } from '@/data/mockData';
+import { mockUsers, DEFAULT_USER_LOCATION } from '@/data/mockData';
 import { fetchItems } from '@/lib/db';
 import type { Item, ItemCategory } from '@/types';
 
 import { AddItemModal } from '@/components/AddItemModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import LandingPage from '@/app/landing/page';
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [page, setPage] = useState(1);
+  const lastDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,7 +38,7 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<'distance' | 'newest' | 'popular'>('distance');
 
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
-  const [mapItems, setMapItems] = useState<Item[]>([]); // Items for the map (global)
+  const [mapItems, setMapItems] = useState<Item[]>([]);
 
   const {
     userLocation, setUserLocation,
@@ -47,96 +49,69 @@ export default function Home() {
     setCurrentUser
   } = useStore();
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/auth');
-    }
-  }, [user, authLoading, router]);
-
-  const fetchItemsData = async (location = userLocation || DEFAULT_USER_LOCATION, pageNum = 1, query = '') => {
+  const fetchItemsData = async (
+    location = userLocation || DEFAULT_USER_LOCATION,
+    reset = true,
+    query = ''
+  ) => {
     try {
       setLoadingMore(true);
-      // 1. Fetch real items from backend (Firestore)
-      const realItems = await fetchItems(12, query);
+      const lastDoc = reset ? null : lastDocRef.current;
+      const result = await fetchItems(12, query, lastDoc);
 
-      // Calculate real distance if we have user location
-      const realItemsWithDistance = realItems.map(item => {
+      const realItemsWithDistance = result.items.map(item => {
         if (!location || !item.location) return { ...item, distance: 0 };
+        
+        const itemLocation = item.location as any;
+        const targetCoords = itemLocation.coordinates || (itemLocation.lng !== undefined && itemLocation.lat !== undefined ? [itemLocation.lng, itemLocation.lat] : null);
+        if (!targetCoords || targetCoords.length < 2 || targetCoords[1] === undefined) return { ...item, distance: 0 };
 
-        const R = 6371e3; // metres
+        const R = 6371e3;
         const lat1 = location.coordinates[1] * Math.PI / 180;
-        const lat2 = item.location.coordinates[1] * Math.PI / 180;
-        const dLat = (item.location.coordinates[1] - location.coordinates[1]) * Math.PI / 180;
-        const dLon = (item.location.coordinates[0] - location.coordinates[0]) * Math.PI / 180;
-
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(lat1) * Math.cos(lat2) *
-          Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const dist = Math.floor(R * c); // in meters
-
+        const lat2 = targetCoords[1] * Math.PI / 180;
+        const dLat = (targetCoords[1] - location.coordinates[1]) * Math.PI / 180;
+        const dLon = (targetCoords[0] - location.coordinates[0]) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+        const dist = Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         return { ...item, distance: dist };
       });
 
-      // 2. Mock items (only on first page to avoid duplicates/confusion if real items are empty initially)
-      let mockItems: Item[] = [];
-      if (pageNum === 1 && realItems.length === 0) {
-        mockItems = fetchMockNearbyItems(
-          location.coordinates[1],
-          location.coordinates[0],
-          2000,
-          selectedCategory || undefined
-        );
-      }
-
-      // Combine
-      if (pageNum === 1) {
-        setNearbyItems([...realItemsWithDistance, ...mockItems]);
+      if (reset) {
+        setNearbyItems(realItemsWithDistance);
       } else {
         setNearbyItems([...nearbyItems, ...realItemsWithDistance]);
       }
 
-      setHasMore(realItems.length === 12); // Simple pagination check
-
+      lastDocRef.current = result.lastDoc;
+      setHasMore(result.hasMore);
     } catch (error) {
       console.error('Failed to fetch items:', error);
-      // Fallback
-      if (pageNum === 1) {
-        setNearbyItems([]);
-      }
+      if (reset) setNearbyItems([]);
     } finally {
       setLoadingMore(false);
     }
   };
 
   const handleLoadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    setLoadingMore(true);
-    fetchItemsData(userLocation || DEFAULT_USER_LOCATION, nextPage);
+    fetchItemsData(userLocation || DEFAULT_USER_LOCATION, false, searchQuery);
   };
 
-  // Fetch all items for the map (Global View)
-  useEffect(() => {
-    if (!user) return;
-    const fetchMapItems = async () => {
-      try {
-        // Use same Firestore fetch with higher limit for map
-        const allItems = await fetchItems(100);
-        setMapItems(allItems);
-      } catch (error) {
-        console.error('Failed to fetch map items:', error);
-      }
-    };
-    fetchMapItems();
-  }, [user]);
 
   // Initialize with data and location
   useEffect(() => {
     if (!user) return;
     setCurrentUser(mockUsers[0]);
-    // Reset page on initial load or category change (if we watched category, but we do this manually)
-    setPage(1);
+
+    // Fetch map items (all items for map view)
+    const fetchMapItems = async () => {
+      try {
+        const result = await fetchItems(100);
+        setMapItems(result.items);
+      } catch (error) {
+        console.error('Failed to fetch map items:', error);
+      }
+    };
+    fetchMapItems();
 
     // Request Location
     if (navigator.geolocation) {
@@ -144,31 +119,30 @@ export default function Home() {
         (position) => {
           const { latitude, longitude } = position.coords;
           const userPos = { type: 'Point' as const, coordinates: [longitude, latitude] as [number, number] };
-          setUserLocation(userPos); // Update store
+          setUserLocation(userPos);
           toast.success("Location found!", { description: "Showing items near you." });
-          fetchItemsData(userPos, 1); // Fetch page 1
+          fetchItemsData(userPos, true);
         },
         (error) => {
           console.error("Location access denied or error:", error);
           toast.error("Location access denied", { description: "Using default location (Guntur)." });
           setUserLocation(DEFAULT_USER_LOCATION);
-          fetchItemsData(DEFAULT_USER_LOCATION, 1);
+          fetchItemsData(DEFAULT_USER_LOCATION, true);
         }
       );
     } else {
       toast.error("Geolocation not supported");
       setUserLocation(DEFAULT_USER_LOCATION);
-      fetchItemsData(DEFAULT_USER_LOCATION, 1);
+      fetchItemsData(DEFAULT_USER_LOCATION, true);
     }
-  }, [user, selectedCategory, setUserLocation, setCurrentUser, setNearbyItems]);
+  }, [user, selectedCategory]);
 
   // Handle search with debounce
   useEffect(() => {
     if (!user) return;
     const timer = setTimeout(() => {
-      setPage(1);
-      fetchItemsData(userLocation || DEFAULT_USER_LOCATION, 1, searchQuery);
-    }, 500); // 500ms debounce
+      fetchItemsData(userLocation || DEFAULT_USER_LOCATION, true, searchQuery);
+    }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -203,7 +177,7 @@ export default function Home() {
   };
 
   const handleAddItemSuccess = () => {
-    fetchItemsData(userLocation || DEFAULT_USER_LOCATION, 1); // Refresh list
+    fetchItemsData(userLocation || DEFAULT_USER_LOCATION, true);
   };
 
   // Sort and filter items for display
@@ -225,12 +199,19 @@ export default function Home() {
     return 0;
   });
 
-  if (authLoading || !user) {
+  if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-muted-foreground font-medium">Loading LocaleLend...</p>
+        </div>
       </div>
     );
+  }
+
+  if (!user) {
+    return <LandingPage />;
   }
 
   return (
@@ -271,6 +252,8 @@ export default function Home() {
             <div className="lg:sticky lg:top-24 h-fit">
               <NeighborhoodMap
                 userLocation={userLocation}
+                userAvatar={user.photoURL || undefined}
+                userName={user.displayName || 'User'}
                 items={mapItems}
                 onItemSelect={handleItemSelect}
                 onRequestClick={handleRequestClick}

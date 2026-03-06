@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Mail, Lock, User, Eye, EyeOff, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -93,22 +93,19 @@ export const AuthForm = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh] w-full p-4">
+    <div className="w-full">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-md"
+        className="w-full"
       >
-        <Card className="backdrop-blur-md bg-white/80 dark:bg-black/40 border-white/20 shadow-xl overflow-hidden">
-          <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-bold text-primary">
-              Locale Lend
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
+        <Card className="bg-card border shadow-card overflow-hidden">
+        <CardHeader className="pb-2">
+            <CardDescription className="text-center text-muted-foreground">
               {showOTPVerification
                 ? "Verify your email to continue"
-                : "Connect with your community"
+                : "Sign in to your account"
               }
             </CardDescription>
           </CardHeader>
@@ -248,10 +245,10 @@ export const AuthForm = () => {
                         </div>
                       </div>
 
-                      <Button type="submit" className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium" disabled={isLoading}>
+                      <Button type="submit" className="w-full" disabled={isLoading}>
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (
                           <span className="flex items-center">
-                            Continue <ArrowRight className="ml-2 h-4 w-4" />
+                            Create Account <ArrowRight className="ml-2 h-4 w-4" />
                           </span>
                         )}
                       </Button>

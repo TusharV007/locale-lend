@@ -28,8 +28,8 @@ export default function SettingsPage() {
         const loadUserData = async () => {
             if (!user) return;
             try {
-                const items = await fetchUserItems(user.uid);
-                setUserItems(items);
+                const result = await fetchUserItems(user.uid);
+                setUserItems(result.items);
             } catch (error) {
                 console.error('Failed to load user data:', error);
             } finally {

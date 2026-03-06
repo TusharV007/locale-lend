@@ -1,26 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, MapPin } from 'lucide-react';
+import { X, Upload, MapPin, Pencil, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { addItem } from '@/lib/db';
+import { addItem, updateItem } from '@/lib/db';
 import { compressImage } from '@/lib/utils';
 import { uploadImage } from '@/lib/storage';
-import type { GeoJSONPoint, ItemCategory } from '@/types';
+import type { GeoJSONPoint, Item, ItemCategory } from '@/types';
 
 interface AddItemModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    editItem?: Item | null; // When provided, switches to edit mode
 }
 
-export function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModalProps) {
+const CATEGORIES: ItemCategory[] = ['Tools', 'Electronics', 'Kitchen', 'Outdoor', 'Books', 'Sports'];
+
+export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: AddItemModalProps) {
     const { user } = useAuth();
+    const isEditMode = !!editItem;
+    const [mounted, setMounted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCapturingLocation, setIsCapturingLocation] = useState(false);
     const [location, setLocation] = useState<GeoJSONPoint | null>(null);
@@ -30,12 +35,39 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModalProps) 
         description: string;
         category: ItemCategory;
         image: string;
+        rentalPricePerDay: number;
     }>({
         title: '',
         description: '',
         category: 'Tools',
         image: '',
+        rentalPricePerDay: 0,
     });
+
+    // Pre-fill form when editing
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // Pre-fill form when editing
+    useEffect(() => {
+        if (editItem) {
+            setFormData({
+                title: editItem.title || '',
+                description: editItem.description || '',
+                category: editItem.category || 'Tools',
+                image: editItem.images?.[0] || '',
+                rentalPricePerDay: (editItem as any).rentalPricePerDay || 0,
+            });
+            if (editItem.location) {
+                setLocation(editItem.location);
+            }
+        } else {
+            setFormData({ title: '', description: '', category: 'Tools', image: '', rentalPricePerDay: 0 });
+            setLocation(null);
+            setLocationError(null);
+        }
+    }, [editItem, isOpen]);
 
     const captureLocation = () => {
         if (typeof window === 'undefined' || !navigator?.geolocation) {
@@ -43,89 +75,79 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModalProps) 
             toast.error('Geolocation not supported by your browser');
             return;
         }
-
         setIsCapturingLocation(true);
         setLocationError(null);
-
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
-                const loc: GeoJSONPoint = {
-                    type: 'Point',
-                    coordinates: [longitude, latitude]
-                };
-                setLocation(loc);
+                setLocation({ type: 'Point', coordinates: [longitude, latitude] });
                 setIsCapturingLocation(false);
                 toast.success('Location captured!');
             },
             (err) => {
-                console.error('Location error:', err);
                 let errorMsg = 'Failed to get location';
-                if (err.code === err.PERMISSION_DENIED) {
-                    errorMsg = 'Location permission denied';
-                } else if (err.code === err.POSITION_UNAVAILABLE) {
-                    errorMsg = 'Location unavailable';
-                }
+                if (err.code === err.PERMISSION_DENIED) errorMsg = 'Location permission denied';
+                else if (err.code === err.POSITION_UNAVAILABLE) errorMsg = 'Location unavailable';
                 setLocationError(errorMsg);
                 setIsCapturingLocation(false);
                 toast.error(errorMsg);
             },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
     };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            try {
-                const toastId = toast.loading("Processing image...");
-                const compressedBase64 = await compressImage(file);
-
-                toast.loading("Uploading...", { id: toastId });
-
-                const res = await fetch(compressedBase64);
-                const blob = await res.blob();
-
-                const filename = `items/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
-
-                const downloadURL = await uploadImage(blob, filename);
-
-                setFormData(prev => ({ ...prev, image: downloadURL }));
-                toast.success("Image uploaded!", { id: toastId });
-            } catch (error) {
-                console.error("Upload error:", error);
-                toast.error("Failed to upload image");
-            }
+        if (!file) return;
+        try {
+            const toastId = toast.loading('Processing image...');
+            const compressedBase64 = await compressImage(file);
+            toast.loading('Uploading...', { id: toastId });
+            const res = await fetch(compressedBase64);
+            const blob = await res.blob();
+            const filename = `items/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+            const downloadURL = await uploadImage(blob, filename);
+            setFormData(prev => ({ ...prev, image: downloadURL }));
+            toast.success('Image uploaded!', { id: toastId });
+        } catch (error) {
+            toast.error('Failed to upload image');
         }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
-
         try {
-            if (!formData.title || !formData.description || !formData.image) {
+            if (!formData.title || !formData.description) {
                 throw new Error('Please fill all required fields');
             }
+            if (!isEditMode && !formData.image) {
+                throw new Error('Please upload an item image');
+            }
 
-            // Use captured location or default to Guntur
-            const itemLocation: GeoJSONPoint = location || {
-                type: 'Point' as const,
-                coordinates: [80.4365, 16.3067]
-            };
+            const itemLocation: GeoJSONPoint = location || { type: 'Point' as const, coordinates: [80.4365, 16.3067] };
 
-            const newItem = {
-                ...formData,
-                ownerId: user?.uid || 'anonymous',
-                owner: {
+            if (isEditMode && editItem) {
+                // Update existing item
+                const updates: any = {
+                    title: formData.title,
+                    description: formData.description,
+                    category: formData.category,
+                    rentalPricePerDay: formData.rentalPricePerDay,
+                };
+                if (formData.image && formData.image !== editItem.images?.[0]) {
+                    updates.images = [formData.image];
+                }
+                if (location) {
+                    updates.location = itemLocation;
+                }
+                await updateItem(editItem.id, updates);
+                toast.success('Item updated successfully!');
+            } else {
+                const ownerData: any = {
                     id: user?.uid || 'anonymous',
                     name: user?.displayName || 'Anonymous',
                     email: user?.email || '',
-                    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
                     location: itemLocation,
                     address: 'Guntur, Andhra Pradesh',
                     trustScore: 5.0,
@@ -133,31 +155,37 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModalProps) 
                     itemsLentCount: 0,
                     itemsBorrowedCount: 0,
                     memberSince: new Date(),
-                    verified: true
-                },
-                availabilityStatus: 'Available' as const,
-                location: itemLocation,
-                distance: 0,
-                images: [formData.image],
-                borrowCount: 0,
-                rentPrice: 0
-            };
+                    verified: true,
+                };
+                if (user?.photoURL) {
+                    ownerData.avatar = user.photoURL;
+                }
 
-            await addItem(newItem);
+                // Create new item
+                const newItem = {
+                    ...formData,
+                    ownerId: user?.uid || 'anonymous',
+                    owner: ownerData,
+                    availabilityStatus: 'Available' as const,
+                    location: itemLocation,
+                    distance: 0,
+                    images: [formData.image],
+                    borrowCount: 0,
+                    rentalPricePerDay: formData.rentalPricePerDay,
+                };
+                await addItem(newItem);
+                toast.success('Item listed successfully!');
+            }
 
-            toast.success('Item listed successfully!');
             onSuccess();
             onClose();
-            setFormData({ title: '', description: '', category: 'Tools', image: '' });
-            setLocation(null);
-            setLocationError(null);
-
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Failed to list item');
+            toast.error(error instanceof Error ? error.message : 'Failed to save item');
         } finally {
             setIsSubmitting(false);
         }
     };
+    if (!mounted) return null;
 
     return createPortal(
         <AnimatePresence>
@@ -170,7 +198,6 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModalProps) 
                         onClick={onClose}
                         className="absolute inset-0 bg-background/80 backdrop-blur-sm"
                     />
-
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -179,38 +206,39 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModalProps) 
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between p-6 border-b">
-                            <h2 className="text-2xl font-bold">List an Item</h2>
-                            <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full">
+                            <div className="flex items-center gap-2">
+                                {isEditMode
+                                    ? <Pencil className="w-5 h-5 text-primary" />
+                                    : <Plus className="w-5 h-5 text-primary" />}
+                                <h2 className="text-2xl font-bold">{isEditMode ? 'Edit Item' : 'List an Item'}</h2>
+                            </div>
+                            <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6">
                             <form id="add-item-form" onSubmit={handleSubmit} className="space-y-4">
+                                {/* Image */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="image">Item Image</Label>
+                                    <Label htmlFor="image">Item Image{!isEditMode && ' *'}</Label>
                                     <div className="flex items-center gap-4">
                                         {formData.image && (
-                                            <img src={formData.image} alt="Preview" className="w-20 h-20 object-cover rounded-lg" />
+                                            <img src={formData.image} alt="Preview" className="w-20 h-20 object-cover rounded-lg border" />
                                         )}
                                         <div className="relative">
-                                            <input
-                                                type="file"
-                                                id="image"
-                                                accept="image/*"
-                                                onChange={handleImageUpload}
-                                                className="hidden"
-                                            />
+                                            <input type="file" id="image" accept="image/*" onChange={handleImageUpload} className="hidden" />
                                             <Button type="button" variant="outline" onClick={() => document.getElementById('image')?.click()}>
                                                 <Upload className="w-4 h-4 mr-2" />
-                                                Upload Image
+                                                {formData.image ? 'Change Image' : 'Upload Image'}
                                             </Button>
                                         </div>
                                     </div>
                                 </div>
 
+                                {/* Title */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="title">Title</Label>
+                                    <Label htmlFor="title">Title *</Label>
                                     <Input
                                         id="title"
                                         value={formData.title}
@@ -220,70 +248,80 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModalProps) 
                                     />
                                 </div>
 
+                                {/* Category */}
                                 <div className="space-y-2">
                                     <Label htmlFor="category">Category</Label>
                                     <select
                                         id="category"
                                         className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
                                         value={formData.category}
-                                        onChange={e => setFormData({ ...formData, category: e.target.value as any })}
+                                        onChange={e => setFormData({ ...formData, category: e.target.value as ItemCategory })}
                                     >
-                                        <option value="Tools">Tools</option>
-                                        <option value="Electronics">Electronics</option>
-                                        <option value="Kitchen">Kitchen</option>
-                                        <option value="Books">Books</option>
-                                        <option value="Outdoor">Outdoor</option>
-                                        <option value="Sports">Sports</option>
-                                        <option value="Other">Other</option>
+                                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
 
+                                {/* Description */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="description">Description</Label>
+                                    <Label htmlFor="description">Description *</Label>
                                     <Textarea
                                         id="description"
                                         value={formData.description}
                                         onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                        placeholder="Describe your item..."
+                                        placeholder="Describe your item, its condition, and any terms..."
                                         rows={3}
                                         required
                                     />
                                 </div>
 
-                                {/* Location Capture */}
+                                {/* Rental Price */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="rentalPrice">Rental Price per Day (₹)</Label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                                        <Input
+                                            id="rentalPrice"
+                                            type="number"
+                                            min={0}
+                                            step={1}
+                                            value={formData.rentalPricePerDay}
+                                            onChange={e => setFormData({ ...formData, rentalPricePerDay: parseFloat(e.target.value) || 0 })}
+                                            className="pl-7"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">Set to 0 for free sharing</p>
+                                </div>
+
+                                {/* Location */}
                                 <div className="space-y-2">
                                     <Label>Item Location</Label>
                                     <Button
                                         type="button"
-                                        variant={location ? "default" : "outline"}
+                                        variant={location ? 'default' : 'outline'}
                                         onClick={captureLocation}
                                         disabled={isCapturingLocation}
                                         className="w-full"
                                     >
                                         <MapPin className="w-4 h-4 mr-2" />
-                                        {isCapturingLocation ? 'Getting Location...' : location ? 'Location Captured ✓' : 'Capture My Location'}
+                                        {isCapturingLocation ? 'Getting Location...' : location ? 'Location Set ✓' : 'Capture My Location'}
                                     </Button>
-                                    {location && (
-                                        <p className="text-xs text-green-600">📍  Location captured successfully</p>
-                                    )}
-                                    {locationError && (
-                                        <p className="text-xs text-red-600">{locationError}</p>
-                                    )}
+                                    {location && <p className="text-xs text-green-600">📍 Location captured successfully</p>}
+                                    {locationError && <p className="text-xs text-red-600">{locationError}</p>}
                                     {!location && !locationError && (
-                                        <p className="text-xs text-muted-foreground">Capture your location so borrowers can see how far away your item is</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {isEditMode ? 'Update your location or keep existing' : 'Capture location so borrowers can see distance'}
+                                        </p>
                                     )}
                                 </div>
                             </form>
                         </div>
 
                         <div className="p-6 border-t bg-secondary/20">
-                            <Button
-                                type="submit"
-                                form="add-item-form"
-                                className="w-full"
-                                disabled={isSubmitting}
-                            >
-                                {isSubmitting ? 'Listing...' : 'List Item'}
+                            <Button type="submit" form="add-item-form" className="w-full" disabled={isSubmitting}>
+                                {isSubmitting
+                                    ? (isEditMode ? 'Saving...' : 'Listing...')
+                                    : (isEditMode ? 'Save Changes' : 'List Item')}
                             </Button>
                         </div>
                     </motion.div>

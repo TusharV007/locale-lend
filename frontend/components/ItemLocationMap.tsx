@@ -13,6 +13,7 @@ interface ItemLocationMapProps {
     itemLocation: GeoJSONPoint;
     itemTitle: string;
     ownerName: string;
+    ownerAvatar?: string;
     distance: string;
 }
 
@@ -22,6 +23,7 @@ export default function ItemLocationMap({
     itemLocation,
     itemTitle,
     ownerName,
+    ownerAvatar,
     distance
 }: ItemLocationMapProps) {
     const mapRef = useRef<HTMLDivElement>(null);
@@ -30,9 +32,12 @@ export default function ItemLocationMap({
     useEffect(() => {
         if (!isOpen || !mapRef.current || mapInstanceRef.current) return;
 
+        const itemLoc = itemLocation as any;
+        const coords = itemLoc.coordinates || (itemLoc.lng !== undefined && itemLoc.lat !== undefined ? [itemLoc.lng, itemLoc.lat] : [80.4365, 16.3067]);
+        
         const center: [number, number] = [
-            itemLocation.coordinates[1],
-            itemLocation.coordinates[0]
+            coords[1] || 16.3067,
+            coords[0] || 80.4365
         ];
 
         const map = L.map(mapRef.current, {
@@ -45,6 +50,13 @@ export default function ItemLocationMap({
             attribution: '© OpenStreetMap © CARTO'
         }).addTo(map);
 
+        const isDummyAvatar = ownerAvatar === 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80';
+        const imageHtml = ownerAvatar && !isDummyAvatar
+            ? `<img src="${ownerAvatar}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />`
+            : ownerName
+                ? `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 600; color: white; font-size: 16px;">${ownerName.charAt(0).toUpperCase()}</div>`
+                : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>`;
+
         // Item location marker
         const markerIcon = L.divIcon({
             className: 'item-location-marker',
@@ -53,18 +65,16 @@ export default function ItemLocationMap({
           <div style="
             width: 40px;
             height: 40px;
-            background: #d97706;
+            background: #d97706;  /* Tools category color fallback */
             border: 4px solid white;
             border-radius: 50%;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
           ">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-              <circle cx="12" cy="9" r="2.5"/>
-            </svg>
+            ${imageHtml}
           </div>
         </div>
       `,
@@ -72,6 +82,7 @@ export default function ItemLocationMap({
             iconAnchor: [20, 40]
         });
 
+        // center is already [lat, lng]
         L.marker(center, { icon: markerIcon })
             .addTo(map)
             .bindPopup(`<b>${itemTitle}</b><br>Owner: ${ownerName}<br>${distance}`);

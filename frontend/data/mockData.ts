@@ -1,9 +1,9 @@
 import type { User, Item, ItemCategory, GeoJSONPoint } from '@/types';
 
-// Mock user location (Guntur, Andhra Pradesh)
+// Mock user location (Visakhapatnam, Andhra Pradesh)
 export const DEFAULT_USER_LOCATION: GeoJSONPoint = {
   type: 'Point' as const,
-  coordinates: [80.4365, 16.3067], // [lng, lat] - Guntur coordinates
+  coordinates: [83.2185, 17.6868], // [lng, lat]
 };
 
 // Mock users representing neighbors in the community

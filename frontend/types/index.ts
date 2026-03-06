@@ -49,6 +49,7 @@ export interface Item {
   createdAt: Date;
   status: 'available' | 'lended' | 'unavailable';
   borrowCount: number;
+  rentalPricePerDay?: number; // 0 = free sharing
 }
 
 // Booking schema - represents a lending transaction
@@ -66,6 +67,7 @@ export interface Request {
     end: Date;
   };
   message: string;
+  paymentStatus?: 'pending' | 'paid' | 'refunded';
   createdAt: Date;
   locationSharing?: {
     enabled: boolean;
@@ -87,4 +89,19 @@ export interface NearbyItemsResponse {
   total: number;
   radius: number;
   center: GeoJSONPoint;
+}
+
+export interface Payment {
+  id: string;
+  requestId: string;
+  itemId: string;
+  itemTitle: string;
+  payerId: string;
+  payerName: string;
+  receiverId: string;
+  receiverName: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'refunded';
+  createdAt: Date;
 }

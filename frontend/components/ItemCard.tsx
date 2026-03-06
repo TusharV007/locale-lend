@@ -46,7 +46,7 @@ export function ItemCard({ item, onRequestClick, index = 0 }: ItemCardProps) {
           <img
             src={item.images[0]}
             alt={item.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-contain bg-muted/30 group-hover:scale-105 transition-transform duration-500"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 via-transparent to-transparent" />
 
@@ -82,15 +82,15 @@ export function ItemCard({ item, onRequestClick, index = 0 }: ItemCardProps) {
           {/* Owner info */}
           <div className="flex items-center justify-between pt-2 border-t border-border">
             <div className="flex items-center gap-2">
-              {item.owner.avatar ? (
+              {item.owner.avatar && item.owner.avatar !== 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80' ? (
                 <img
                   src={item.owner.avatar}
                   alt={item.owner.name}
                   className="w-8 h-8 rounded-full object-cover border-2 border-primary/20"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                  <User className="w-4 h-4 text-secondary-foreground" />
+                <div className="w-8 h-8 rounded-full bg-secondary text-primary font-semibold flex flex-col pt-[1px] items-center justify-center">
+                  <span>{item.owner.name?.charAt(0)?.toUpperCase()}</span>
                 </div>
               )}
               <div className="flex flex-col">
@@ -130,14 +130,14 @@ export function ItemCard({ item, onRequestClick, index = 0 }: ItemCardProps) {
             {(item.status === 'available' || !item.status) && (
               <Button
                 size="sm"
-                variant="accent"
+                variant="default"
                 className="flex-1"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRequestClick(item);
                 }}
               >
-                Request
+                {(item as any).rentalPricePerDay > 0 ? `Request · ₹${(item as any).rentalPricePerDay}/day` : 'Request'}
               </Button>
             )}
           </div>
@@ -152,6 +152,7 @@ export function ItemCard({ item, onRequestClick, index = 0 }: ItemCardProps) {
           itemLocation={item.location}
           itemTitle={item.title}
           ownerName={item.owner.name}
+          ownerAvatar={item.owner.avatar}
           distance={formatDistance(item.distance)}
         />
       )}

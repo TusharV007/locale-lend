@@ -10,6 +10,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import type { GeoJSONPoint } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface LocationSharingControlsProps {
     requestId: string;
@@ -30,6 +31,7 @@ export default function LocationSharingControls({
     const [sharedLocation, setSharedLocation] = useState<GeoJSONPoint | null>(null);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const [showLocationMap, setShowLocationMap] = useState(false);
+    const { user } = useAuth();
 
     const { startSharing, stopSharing, currentLocation, error: locationError, isSharing } = useLocationSharing();
 
@@ -114,6 +116,8 @@ export default function LocationSharingControls({
                     borrowerLocation={currentLocation || undefined}
                     ownerName={otherPartyName}
                     lastUpdated={lastUpdated}
+                    borrowerName={user?.displayName || 'User'}
+                    borrowerAvatar={user?.photoURL || undefined}
                 />
             )}
         </>
