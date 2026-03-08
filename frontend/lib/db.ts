@@ -127,37 +127,43 @@ export const fetchItems = async (
 ): Promise<PaginatedItems> => {
     try {
         let q;
-        if (searchQuery) {
-            q = query(
-                collection(db, ITEMS_COLLECTION),
-                where('title', '>=', searchQuery),
-                where('title', '<=', searchQuery + '\uf8ff'),
-                limit(limitCount)
-            );
-        } else if (lastDoc) {
+        // If searching, we fetch a larger batch and filter locally to enable case-insensitive partial matches
+        const fetchLimit = searchQuery ? 100 : limitCount;
+
+        if (lastDoc) {
             q = query(
                 collection(db, ITEMS_COLLECTION),
                 orderBy("createdAt", "desc"),
                 startAfter(lastDoc),
-                limit(limitCount)
+                limit(fetchLimit)
             );
         } else {
             q = query(
                 collection(db, ITEMS_COLLECTION),
                 orderBy("createdAt", "desc"),
-                limit(limitCount)
+                limit(fetchLimit)
             );
         }
 
         const querySnapshot = await getDocs(q);
-        const items = querySnapshot.docs.map(d => {
+        let items = querySnapshot.docs.map(d => {
             const data = d.data();
             return { id: d.id, ...data, createdAt: parseDate(data.createdAt) } as Item;
         });
 
+        if (searchQuery) {
+            const lowerQuery = searchQuery.toLowerCase();
+            items = items.filter(item => 
+                item.title.toLowerCase().includes(lowerQuery) || 
+                (item.description && item.description.toLowerCase().includes(lowerQuery))
+            );
+            // Truncate to limit count
+            items = items.slice(0, limitCount);
+        }
+
         const newLastDoc = querySnapshot.docs.length > 0 ? querySnapshot.docs[querySnapshot.docs.length - 1] : null;
 
-        return { items, lastDoc: newLastDoc, hasMore: querySnapshot.docs.length === limitCount };
+        return { items, lastDoc: newLastDoc, hasMore: querySnapshot.docs.length === fetchLimit };
     } catch (error) {
         console.error("Error fetching items:", error);
         if ((error as any)?.code === 'failed-precondition') {
