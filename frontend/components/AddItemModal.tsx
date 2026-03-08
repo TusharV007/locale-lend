@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { addItem, updateItem } from '@/lib/db';
+import { addItem, updateItem, fetchUserProfile } from '@/lib/db';
 import { compressImage } from '@/lib/utils';
 import { uploadImage } from '@/lib/storage';
 import type { GeoJSONPoint, Item, ItemCategory } from '@/types';
@@ -147,22 +147,30 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
                 await updateItem(editItem.id, updates);
                 toast.success('Item updated successfully!');
             } else {
+                // Fetch latest user profile gracefully to avoid permission errors or crashes
+                let profile = null;
+                try {
+                    if (user?.uid) {
+                        profile = await fetchUserProfile(user.uid);
+                    }
+                } catch (err) {
+                    console.warn('Could not fetch user profile, using defaults:', err);
+                }
+                
                 const ownerData: any = {
                     id: user?.uid || 'anonymous',
                     name: user?.displayName || 'Anonymous',
                     email: user?.email || '',
+                    avatar: profile?.avatar || user?.photoURL || null,
                     location: itemLocation,
-                    address: 'Guntur, Andhra Pradesh',
-                    trustScore: 5.0,
-                    totalReviews: 0,
-                    itemsLentCount: 0,
-                    itemsBorrowedCount: 0,
-                    memberSince: new Date(),
-                    verified: true,
+                    address: profile?.address || 'Local Neighborhood',
+                    trustScore: profile?.trustScore || 0,
+                    totalReviews: profile?.totalReviews || 0,
+                    itemsLentCount: profile?.itemsLentCount || 0,
+                    itemsBorrowedCount: profile?.itemsBorrowedCount || 0,
+                    memberSince: profile?.memberSince || new Date(),
+                    verified: profile?.verified || false,
                 };
-                if (user?.photoURL) {
-                    ownerData.avatar = user.photoURL;
-                }
 
                 // Create new item
                 const newItem = {

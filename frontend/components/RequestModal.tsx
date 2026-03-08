@@ -21,6 +21,7 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
   const [message, setMessage] = useState('');
   const [rentalDays, setRentalDays] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   if (!item) return null;
 
@@ -114,11 +115,18 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
             <div className="p-6 space-y-6">
               {/* Owner card */}
               <div className="flex items-center gap-4 p-4 rounded-xl bg-secondary">
-                <img
-                  src={item.owner.avatar}
-                  alt={item.owner.name}
-                  className="w-14 h-14 rounded-full object-cover border-2 border-primary/20"
-                />
+                {item.owner.avatar && !imageError ? (
+                  <img
+                    src={item.owner.avatar}
+                    alt={item.owner.name}
+                    onError={() => setImageError(true)}
+                    className="w-14 h-14 rounded-full object-cover border-2 border-primary/20"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-background/50 text-primary font-bold flex items-center justify-center text-xl border-2 border-primary/20">
+                    {item.owner.name?.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-card-foreground">{item.owner.name}</span>

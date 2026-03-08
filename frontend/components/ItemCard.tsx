@@ -35,6 +35,8 @@ export function ItemCard({
   const isOwner = currentUserId === item.owner.id || isOwnerView;
   const [showLocationMap, setShowLocationMap] = useState(false);
 
+  const [imageError, setImageError] = useState(false);
+
   const statusColors: Record<string, string> = {
     available: 'bg-green-500/10 text-green-600 border-green-500/20',
     lended: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
@@ -99,10 +101,11 @@ export function ItemCard({
             {!isOwnerView && (
               <div className="flex items-center justify-between pt-3 border-t border-border">
                 <div className="flex items-center gap-2 overflow-hidden">
-                  {item.owner.avatar && item.owner.avatar !== 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80' ? (
+                  {item.owner.avatar && !imageError && item.owner.avatar !== 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80' ? (
                     <img
                       src={item.owner.avatar}
                       alt={item.owner.name}
+                      onError={() => setImageError(true)}
                       className="w-8 h-8 shrink-0 rounded-full object-cover border-2 border-primary/20"
                     />
                   ) : (

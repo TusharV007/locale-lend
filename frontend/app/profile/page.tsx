@@ -191,12 +191,12 @@ export default function ProfilePage() {
                 
                 {/* Actions */}
                 <div className="flex gap-2 mt-2">
-                    {item.status === 'accepted' && role === 'lender' && (
+                    {item.status === 'accepted' && (
                         <button 
                             onClick={() => handleCompleteRequest(item.requestId)}
                             className="text-xs bg-primary/10 text-primary hover:bg-primary/20 px-2 py-1 rounded transition-colors font-medium"
                         >
-                            Mark Completed
+                            {role === 'lender' ? 'Mark Completed' : 'Mark Returned'}
                         </button>
                     )}
                     
