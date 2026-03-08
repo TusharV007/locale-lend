@@ -173,7 +173,7 @@ function LandingNav({ onCTA }: { onCTA: () => void }) {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-soft">
             <MapPin className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold text-foreground">Locale Lend</span>
+          <span className="text-xl font-bold text-foreground">Local Share</span>
         </div>
 
         {/* Desktop links */}
@@ -285,7 +285,7 @@ export default function LandingPage() {
 
             <motion.p variants={fadeUp} custom={2}
               className="text-xl text-muted-foreground leading-relaxed max-w-lg">
-              Why buy when you can borrow? LocalLend connects you with trusted neighbors
+              Why buy when you can borrow? LocalShare connects you with trusted neighbors
               to share tools, gear, and everyday items — saving money, reducing waste,
               and building real community.
             </motion.p>
@@ -396,7 +396,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div variants={fadeUp} custom={0} className="text-center mb-16">
             <span className="text-sm font-semibold text-primary uppercase tracking-widest">Simple process</span>
-            <h2 className="mt-3 text-4xl md:text-5xl font-bold text-foreground">How LocalLend works</h2>
+            <h2 className="mt-3 text-4xl md:text-5xl font-bold text-foreground">How LocalShare works</h2>
             <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">
               Get started in minutes. No subscriptions, no complexity.
             </p>
@@ -513,7 +513,7 @@ export default function LandingPage() {
       <Section id="features" className="py-24 bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div variants={fadeUp} custom={0} className="text-center mb-16">
-            <span className="text-sm font-semibold text-primary uppercase tracking-widest">Why LocalLend</span>
+            <span className="text-sm font-semibold text-primary uppercase tracking-widest">Why LocalShare</span>
             <h2 className="mt-3 text-4xl md:text-5xl font-bold text-foreground">Built for real neighborhoods</h2>
           </motion.div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -556,7 +556,7 @@ export default function LandingPage() {
               {
                 icon: Heart,
                 title: 'Completely free',
-                description: 'No subscription fees, no hidden charges. LocalLend is free for borrowers and lenders. We believe community should be accessible.',
+                description: 'No subscription fees, no hidden charges. LocalShare is free for borrowers and lenders. We believe community should be accessible.',
                 color: '#f97316',
                 delay: 0.5,
               },
@@ -572,7 +572,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div variants={fadeUp} custom={0} className="text-center mb-16">
             <span className="text-sm font-semibold text-primary uppercase tracking-widest">Community voices</span>
-            <h2 className="mt-3 text-4xl md:text-5xl font-bold text-foreground">Neighbors love LocalLend</h2>
+            <h2 className="mt-3 text-4xl md:text-5xl font-bold text-foreground">Neighbors love LocalShare</h2>
           </motion.div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
@@ -584,14 +584,14 @@ export default function LandingPage() {
                 delay: 0,
               },
               {
-                quote: "I had a DSLR sitting in my closet for years. Listed it on LocalLend, and now it's used by three different neighbors monthly. It feels great knowing it's not going to waste.",
+                quote: "I had a DSLR sitting in my closet for years. Listed it on LocalShare, and now it's used by three different neighbors monthly. It feels great knowing it's not going to waste.",
                 name: "Arjun M.",
                 role: "Photographer, Hyderabad",
                 rating: 5,
                 delay: 0.1,
               },
               {
-                quote: "As a new resident, LocalLend helped me meet my neighbors before I even moved all my boxes in. Borrowed a trolley, returned it, got invited for chai. Community is real here.",
+                quote: "As a new resident, LocalShare helped me meet my neighbors before I even moved all my boxes in. Borrowed a trolley, returned it, got invited for chai. Community is real here.",
                 name: "Meera K.",
                 role: "New resident, Pune",
                 rating: 5,
@@ -628,7 +628,7 @@ export default function LandingPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
                 <Button size="xl" onClick={handleCTA} className="group shadow-accent">
-                  Join LocalLend Free
+                  Join LocalShare Free
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
                 <Button size="xl" variant="outline" asChild>
@@ -651,10 +651,10 @@ export default function LandingPage() {
               <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
                 <MapPin className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-bold text-foreground">Locale Lend</span>
+              <span className="font-bold text-foreground">Local Share</span>
             </div>
             <p className="text-sm text-muted-foreground text-center">
-              © 2026 Locale Lend · Built to strengthen neighborhoods · Free for everyone
+              © 2026 Local Share · Built to strengthen neighborhoods · Free for everyone
             </p>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <Link href="/auth" className="hover:text-foreground transition-colors">Sign In</Link>

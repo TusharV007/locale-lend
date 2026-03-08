@@ -1,5 +1,5 @@
 /**
- * Trust Engine - Calculates user trust scores for the Locale Lend platform
+ * Trust Engine - Calculates user trust scores for the Local Share platform
  * 
  * The trust score is a weighted average that considers:
  * - Peer Reviews (70% weight): Average rating from other users

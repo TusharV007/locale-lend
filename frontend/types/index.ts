@@ -1,4 +1,4 @@
-// Locale Lend Type Definitions
+// Local Share Type Definitions
 // These types mirror what would be Mongoose schemas in a full-stack app
 
 export type ItemCategory = 'Tools' | 'Electronics' | 'Kitchen' | 'Outdoor' | 'Books' | 'Sports';

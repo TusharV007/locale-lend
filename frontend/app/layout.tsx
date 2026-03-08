@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Locale Lend",
+  title: "Local Share",
   description: "Neighborhood lending platform",
 };
 

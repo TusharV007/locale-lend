@@ -73,7 +73,7 @@ export function LocationRequiredModal({ isOpen, onRetry }: LocationRequiredModal
             <h2 className="text-2xl font-bold mb-3">Location Required</h2>
             
             <p className="text-muted-foreground mb-6">
-              LocaleLend relies on your location to find items available in your neighborhood. 
+              LocalShare relies on your location to find items available in your neighborhood. 
               Please enable location access in your browser settings to continue.
             </p>
             

@@ -45,7 +45,7 @@ export default function AuthPage() {
                         <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                             <MapPin className="w-6 h-6" />
                         </div>
-                        <span className="text-2xl font-bold">Locale Lend</span>
+                        <span className="text-2xl font-bold">Local Share</span>
                     </Link>
 
                     <div className="space-y-6">
@@ -88,7 +88,7 @@ export default function AuthPage() {
                             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                                 <MapPin className="w-4 h-4 text-primary-foreground" />
                             </div>
-                            <span className="text-xl font-bold text-foreground">Locale Lend</span>
+                            <span className="text-xl font-bold text-foreground">Local Share</span>
                         </Link>
                         <p className="text-muted-foreground text-sm">Connect with your neighbors</p>
                     </div>

@@ -82,7 +82,7 @@ export const AuthForm = () => {
       await signUp(signUpData.email, signUpData.password, signUpData.displayName);
       toast({
         title: "Account Created",
-        description: "Welcome to Locale Lend!",
+        description: "Welcome to Local Share!",
       });
       router.push('/');
     } catch (error) {
