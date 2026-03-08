@@ -244,6 +244,7 @@ export interface RequestData {
     status: 'pending' | 'accepted' | 'rejected' | 'completed';
     paymentStatus?: 'unpaid' | 'paid';
     rentalPricePerDay?: number;
+    rentalDays?: number;
     createdAt: Date;
 }
 
@@ -362,6 +363,7 @@ export interface HistoryItem {
     status: 'pending' | 'accepted' | 'rejected' | 'completed';
     paymentStatus?: 'unpaid' | 'paid';
     rentalPricePerDay?: number;
+    rentalDays?: number;
     createdAt: Date;
 }
 
@@ -397,6 +399,7 @@ export const fetchUserLendingHistory = async (userId: string): Promise<HistoryIt
                 status: data.status,
                 paymentStatus: data.paymentStatus,
                 rentalPricePerDay: data.rentalPricePerDay,
+                rentalDays: data.rentalDays,
                 createdAt: parseDate(data.createdAt),
             });
         }
@@ -412,7 +415,7 @@ export const fetchUserLendingHistory = async (userId: string): Promise<HistoryIt
                 return {
                     requestId: d.id, itemId: data.itemId, itemTitle: data.itemTitle,
                     otherPartyId: data.borrowerId, otherPartyName: data.borrowerName, status: data.status,
-                    paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay,
+                    paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay, rentalDays: data.rentalDays,
                     createdAt: parseDate(data.createdAt)
                 } as HistoryItem;
             });
@@ -453,6 +456,7 @@ export const fetchUserBorrowingHistory = async (userId: string): Promise<History
                 status: data.status,
                 paymentStatus: data.paymentStatus,
                 rentalPricePerDay: data.rentalPricePerDay,
+                rentalDays: data.rentalDays,
                 createdAt: parseDate(data.createdAt),
             });
         }
@@ -467,7 +471,7 @@ export const fetchUserBorrowingHistory = async (userId: string): Promise<History
                 return {
                     requestId: d.id, itemId: data.itemId, itemTitle: data.itemTitle,
                     otherPartyId: data.lenderId, otherPartyName: data.lenderName, status: data.status,
-                    paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay,
+                    paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay, rentalDays: data.rentalDays,
                     createdAt: parseDate(data.createdAt)
                 } as HistoryItem;
             });
@@ -503,14 +507,14 @@ export const sendMessage = async (requestId: string, senderId: string, content: 
             const recipientId = isSenderLender ? requestData.borrowerId : requestData.lenderId;
             const senderName = isSenderLender ? requestData.lenderName : requestData.borrowerName;
 
-            // Notify the recipient
+            // Notify the recipient (preventing any undefined fields which crash Firestore)
             await createNotification({
-                userId: recipientId,
+                userId: recipientId || 'unknown',
                 type: 'new_message',
                 title: 'New Message 💬',
-                message: `${senderName.split(' ')[0]}: "${content.length > 50 ? content.slice(0, 50) + '...' : content}"`,
+                message: `${(senderName || 'User').split(' ')[0]}: "${content.length > 50 ? content.slice(0, 50) + '...' : content}"`,
                 requestId: requestId,
-                itemTitle: requestData.itemTitle,
+                itemTitle: requestData.itemTitle || 'Unknown Item',
             });
         }
     } catch (error) {

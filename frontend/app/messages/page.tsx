@@ -146,6 +146,7 @@ export default function MessagesPage() {
                     lenderId={paymentRequest.lenderId}
                     lenderName={paymentRequest.lenderName}
                     rentalPricePerDay={paymentRequest.rentalPricePerDay}
+                    rentalDays={paymentRequest.rentalDays}
                     onSuccess={() => {
                         setPaymentRequest(null);
                         fetchRequests();
@@ -224,7 +225,7 @@ const RequestCard = ({
                     {request.rentalPricePerDay !== undefined && request.rentalPricePerDay > 0 && (
                         <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                             <IndianRupee className="w-3 h-3" />
-                            {request.rentalPricePerDay}/day rental
+                            {request.rentalPricePerDay}/day rental • {request.rentalDays || 1} {request.rentalDays === 1 ? 'day' : 'days'}
                         </p>
                     )}
 

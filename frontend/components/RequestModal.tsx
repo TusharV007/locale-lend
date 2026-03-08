@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, MessageSquare, Star, Shield, MapPin } from 'lucide-react';
+import { X, Calendar, MessageSquare, Star, Shield, MapPin, Minus, Plus } from 'lucide-react';
 import type { Item } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,6 +19,7 @@ interface RequestModalProps {
 export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalProps) {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
+  const [rentalDays, setRentalDays] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!item) return null;
@@ -26,7 +27,7 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const requestData = {
+      const requestData: any = {
         itemId: item.id,
         itemTitle: item.title,
         borrowerId: user?.uid || 'anonymous',
@@ -34,30 +35,21 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
         lenderId: item.owner.id,
         lenderName: item.owner.name,
         message: message,
+        rentalDays: rentalDays
       };
 
-      /*
-      const response = await fetch('http://localhost:5000/api/requests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
+      if (item.rentalPricePerDay) {
+          requestData.rentalPricePerDay = item.rentalPricePerDay;
+      }
 
-      if (!response.ok) throw new Error('Failed to send request');
-      */
-
-      await createRequest({
-        ...requestData
-      });
+      await createRequest(requestData);
 
       onSubmit(message);
       setMessage('');
+      setRentalDays(1);
       onClose();
     } catch (error) {
       console.error('Request failed:', error);
-      // alert('Failed to send request'); // Optional UI feedback
     } finally {
       setIsSubmitting(false);
     }
@@ -143,6 +135,41 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
                       {item.owner.itemsLentCount} items shared
                     </span>
                   </div>
+                </div>
+              </div>
+
+              {/* Rental Duration input */}
+              <div className="space-y-2">
+                <label className="flex flex-col text-sm font-medium text-card-foreground">
+                  <span className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Rental Duration
+                  </span>
+                  {item.rentalPricePerDay ? (
+                    <span className="text-xs text-muted-foreground mt-0.5">
+                      ₹{item.rentalPricePerDay}/day • Total: ₹{(item.rentalPricePerDay * rentalDays).toFixed(2)}
+                    </span>
+                  ) : null}
+                </label>
+                <div className="flex items-center gap-3">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setRentalDays(Math.max(1, rentalDays - 1))}
+                    disabled={rentalDays <= 1}
+                  >
+                    <Minus className="w-4 h-4" />
+                  </Button>
+                  <div className="w-16 text-center font-medium text-lg">
+                    {rentalDays} {rentalDays === 1 ? 'day' : 'days'}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setRentalDays(Math.min(30, rentalDays + 1))}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
 

@@ -18,6 +18,7 @@ interface PaymentModalProps {
     lenderId: string;
     lenderName: string;
     rentalPricePerDay?: number;
+    rentalDays?: number;
     onSuccess: () => void;
 }
 
@@ -30,6 +31,7 @@ export function PaymentModal({
     lenderId,
     lenderName,
     rentalPricePerDay = 0,
+    rentalDays = 1,
     onSuccess,
 }: PaymentModalProps) {
     const { user } = useAuth();
@@ -39,7 +41,7 @@ export function PaymentModal({
 
     useEffect(() => { setMounted(true); }, []);
 
-    const amount = rentalPricePerDay > 0 ? rentalPricePerDay : 0;
+    const amount = (rentalPricePerDay > 0 ? rentalPricePerDay : 0) * (rentalDays > 0 ? rentalDays : 1);
 
     const handlePay = async () => {
         if (!user) return;
@@ -129,6 +131,12 @@ export function PaymentModal({
                                     <div className="flex justify-between items-center text-sm text-muted-foreground">
                                         <span>To: {lenderName}</span>
                                     </div>
+                                    {rentalDays && rentalDays > 1 && rentalPricePerDay && rentalPricePerDay > 0 && (
+                                        <div className="flex justify-between items-center text-sm text-muted-foreground mt-1">
+                                            <span>Duration: {rentalDays} days</span>
+                                            <span>(₹{rentalPricePerDay}/day)</span>
+                                        </div>
+                                    )}
                                     <div className="border-t pt-3 flex justify-between items-center">
                                         <span className="font-semibold text-foreground">Total Amount</span>
                                         <div className="flex items-center gap-1 text-xl font-bold text-primary">
