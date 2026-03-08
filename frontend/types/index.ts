@@ -105,3 +105,18 @@ export interface Payment {
   status: 'pending' | 'paid' | 'refunded';
   createdAt: Date;
 }
+
+// Review schema - represents a user rating and feedback
+export interface Review {
+  id: string;
+  requestId: string; // The transaction this review relates to
+  reviewerId: string;
+  reviewerName: string;
+  revieweeId: string; // The user receiving the review
+  itemId: string;
+  itemTitle: string;
+  rating: number; // 1-5 stars
+  comment?: string;
+  createdAt: Date;
+}
+

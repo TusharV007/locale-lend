@@ -19,13 +19,16 @@ import {
     startAfter,
     writeBatch,
 } from "firebase/firestore";
-import type { Item, GeoJSONPoint, Payment, Request, User } from "@/types";
+import type { Item, GeoJSONPoint, Payment, Request, User, Review } from "@/types";
+import { calculateTrustScore } from "./trustEngine";
 
 const ITEMS_COLLECTION = "items";
 const REQUESTS_COLLECTION = "requests";
 const MESSAGES_SUBCOLLECTION = "messages";
 const NOTIFICATIONS_COLLECTION = "notifications";
 const PAYMENTS_COLLECTION = "payments";
+const REVIEWS_COLLECTION = "reviews";
+const USERS_COLLECTION = "users";
 
 // Helper to safely parse any date format (Timestamp, Date, number, or string) from Firestore
 function parseDate(val: any): Date {
@@ -232,7 +235,7 @@ export interface RequestData {
     lenderId: string;
     lenderName: string;
     message: string;
-    status: 'pending' | 'accepted' | 'rejected';
+    status: 'pending' | 'accepted' | 'rejected' | 'completed';
     paymentStatus?: 'unpaid' | 'paid';
     rentalPricePerDay?: number;
     createdAt: Date;
@@ -292,7 +295,7 @@ export const fetchUserRequests = async (userId: string): Promise<RequestData[]> 
     }
 };
 
-export const updateRequestStatus = async (requestId: string, status: 'accepted' | 'rejected') => {
+export const updateRequestStatus = async (requestId: string, status: 'accepted' | 'rejected' | 'completed') => {
     try {
         const docRef = doc(db, REQUESTS_COLLECTION, requestId);
         await updateDoc(docRef, { status });
@@ -309,21 +312,29 @@ export const updateRequestStatus = async (requestId: string, status: 'accepted' 
                 const itemDoc = await getDoc(itemRef);
                 if (itemDoc.exists()) {
                     const currentCount = itemDoc.data().borrowCount || 0;
-                    await updateDoc(itemRef, { borrowCount: currentCount + 1 });
+                    await updateDoc(itemRef, { borrowCount: currentCount + 1, status: 'lended' });
                 }
             }
 
+            // Restore item status on complete
+            if (status === 'completed' && itemId) {
+                 const itemRef = doc(db, ITEMS_COLLECTION, itemId);
+                 await updateDoc(itemRef, { status: 'available' });
+            }
+
             // Notify borrower
-            await createNotification({
-                userId: requestData.borrowerId,
-                type: status === 'accepted' ? 'request_accepted' : 'request_rejected',
-                title: status === 'accepted' ? '🎉 Request Accepted!' : 'Request Rejected',
-                message: status === 'accepted'
-                    ? `Your request for "${requestData.itemTitle}" was accepted by ${requestData.lenderName}. Please complete payment.`
-                    : `Your request for "${requestData.itemTitle}" was declined by ${requestData.lenderName}.`,
-                requestId,
-                itemTitle: requestData.itemTitle,
-            });
+            if (status !== 'completed') {
+                await createNotification({
+                    userId: requestData.borrowerId,
+                    type: status === 'accepted' ? 'request_accepted' : 'request_rejected',
+                    title: status === 'accepted' ? '🎉 Request Accepted!' : 'Request Rejected',
+                    message: status === 'accepted'
+                        ? `Your request for "${requestData.itemTitle}" was accepted by ${requestData.lenderName}. Please complete payment.`
+                        : `Your request for "${requestData.itemTitle}" was declined by ${requestData.lenderName}.`,
+                    requestId,
+                    itemTitle: requestData.itemTitle,
+                });
+            }
         }
     } catch (error) {
         console.error("Error updating request status:", error);
@@ -340,8 +351,9 @@ export interface HistoryItem {
     itemId: string;
     itemTitle: string;
     itemImage?: string;
+    otherPartyId: string;
     otherPartyName: string;
-    status: 'pending' | 'accepted' | 'rejected';
+    status: 'pending' | 'accepted' | 'rejected' | 'completed';
     paymentStatus?: 'unpaid' | 'paid';
     rentalPricePerDay?: number;
     createdAt: Date;
@@ -374,6 +386,7 @@ export const fetchUserLendingHistory = async (userId: string): Promise<HistoryIt
                 itemId: data.itemId,
                 itemTitle: data.itemTitle,
                 itemImage,
+                otherPartyId: data.borrowerId,
                 otherPartyName: data.borrowerName,
                 status: data.status,
                 paymentStatus: data.paymentStatus,
@@ -392,7 +405,7 @@ export const fetchUserLendingHistory = async (userId: string): Promise<HistoryIt
                 const data = d.data();
                 return {
                     requestId: d.id, itemId: data.itemId, itemTitle: data.itemTitle,
-                    otherPartyName: data.borrowerName, status: data.status,
+                    otherPartyId: data.borrowerId, otherPartyName: data.borrowerName, status: data.status,
                     paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay,
                     createdAt: parseDate(data.createdAt)
                 } as HistoryItem;
@@ -429,6 +442,7 @@ export const fetchUserBorrowingHistory = async (userId: string): Promise<History
                 itemId: data.itemId,
                 itemTitle: data.itemTitle,
                 itemImage,
+                otherPartyId: data.lenderId,
                 otherPartyName: data.lenderName,
                 status: data.status,
                 paymentStatus: data.paymentStatus,
@@ -446,7 +460,7 @@ export const fetchUserBorrowingHistory = async (userId: string): Promise<History
                 const data = d.data();
                 return {
                     requestId: d.id, itemId: data.itemId, itemTitle: data.itemTitle,
-                    otherPartyName: data.lenderName, status: data.status,
+                    otherPartyId: data.lenderId, otherPartyName: data.lenderName, status: data.status,
                     paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay,
                     createdAt: parseDate(data.createdAt)
                 } as HistoryItem;
@@ -636,5 +650,118 @@ export const disableLocationSharing = async (requestId: string) => {
         throw error;
     }
 };
+
+// ============================================
+// REVIEW FUNCTIONS
+// ============================================
+
+export const createReview = async (review: Omit<Review, "id" | "createdAt">) => {
+    try {
+        const docRef = await addDoc(collection(db, REVIEWS_COLLECTION), {
+            ...review,
+            createdAt: Timestamp.now()
+        });
+
+        // 1. Fetch user to update their stats
+        const userRef = doc(db, USERS_COLLECTION, review.revieweeId);
+        const userDoc = await getDoc(userRef);
+
+        if (userDoc.exists()) {
+            const userData = userDoc.data() as User;
+            const currentTotalReviews = userData.totalReviews || 0;
+            const currentTotalRating = (userData.trustScore || 3.0) * currentTotalReviews; // approximation or we can pull averageReviewRating if it exists
+
+            // 2. Fetch all reviews for this user to get exact average
+            const allReviewsQ = query(collection(db, REVIEWS_COLLECTION), where("revieweeId", "==", review.revieweeId));
+            const allReviewsSnap = await getDocs(allReviewsQ);
+            
+            let totalRating = 0;
+            allReviewsSnap.docs.forEach(d => {
+                totalRating += d.data().rating;
+            });
+            const newTotalReviews = allReviewsSnap.docs.length;
+            const newAverageRating = totalRating / newTotalReviews;
+
+            // 3. Re-calculate Trust Score
+            const trustResult = calculateTrustScore({
+                averageReviewRating: newAverageRating,
+                totalReviews: newTotalReviews,
+                successfulReturns: userData.itemsBorrowedCount || 0, // approximation
+                totalBorrowings: userData.itemsBorrowedCount || 0,
+                successfulLends: userData.itemsLentCount || 0,
+                totalLendings: userData.itemsLentCount || 0,
+                isVerified: userData.verified || false,
+                accountAgeDays: Math.floor((new Date().getTime() - parseDate(userData.memberSince).getTime()) / (1000 * 3600 * 24)) || 0,
+            });
+
+            // 4. Update the user record
+            await updateDoc(userRef, {
+                totalReviews: newTotalReviews,
+                trustScore: trustResult.score,
+            });
+        }
+
+        // Notify reviewee
+        await createNotification({
+            userId: review.revieweeId,
+            type: 'request_accepted', // Using an existing type for now
+            title: 'New Review Received! ⭐',
+            message: `${review.reviewerName} left you a ${review.rating}-star review for "${review.itemTitle}".`,
+            requestId: review.requestId,
+            itemTitle: review.itemTitle,
+        });
+
+        return docRef.id;
+    } catch (error) {
+        console.error("Error creating review:", error);
+        throw error;
+    }
+};
+
+export const fetchUserReviews = async (userId: string): Promise<Review[]> => {
+    try {
+        const q = query(
+            collection(db, REVIEWS_COLLECTION),
+            where("revieweeId", "==", userId),
+            orderBy("createdAt", "desc")
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(d => {
+            const data = d.data();
+            return { id: d.id, ...data, createdAt: parseDate(data.createdAt) } as Review;
+        });
+    } catch (error) {
+        console.error("Error fetching reviews:", error);
+        // Fallback without orderBy
+        try {
+            const fallbackQ = query(
+                collection(db, REVIEWS_COLLECTION),
+                where("revieweeId", "==", userId)
+            );
+            const snap = await getDocs(fallbackQ);
+            return snap.docs.map(d => ({
+                id: d.id, ...d.data(), createdAt: parseDate(d.data().createdAt)
+            } as Review));
+        } catch (e) {
+            return [];
+        }
+    }
+};
+
+export const checkReviewExists = async (requestId: string, reviewerId: string): Promise<boolean> => {
+    try {
+        const q = query(
+            collection(db, REVIEWS_COLLECTION),
+            where("requestId", "==", requestId),
+            where("reviewerId", "==", reviewerId)
+        );
+        const snap = await getDocs(q);
+        return !snap.empty;
+    } catch (error) {
+        console.error("Error checking review existence:", error);
+        return false;
+    }
+};
+
 
 

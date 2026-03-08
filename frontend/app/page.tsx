@@ -16,6 +16,7 @@ const NeighborhoodMap = dynamic(() => import('@/components/NeighborhoodMap').the
   loading: () => <div className="w-full h-[500px] bg-secondary animate-pulse rounded-2xl" />,
 });
 import { RequestModal } from '@/components/RequestModal';
+import { LocationRequiredModal } from '@/components/LocationRequiredModal';
 import { useStore } from '@/store/useStore';
 import { mockUsers, DEFAULT_USER_LOCATION } from '@/data/mockData';
 import { fetchItems } from '@/lib/db';
@@ -39,6 +40,7 @@ export default function Home() {
 
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [mapItems, setMapItems] = useState<Item[]>([]);
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   const {
     userLocation, setUserLocation,
@@ -97,6 +99,31 @@ export default function Home() {
   };
 
 
+  const requestUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const userPos = { type: 'Point' as const, coordinates: [longitude, latitude] as [number, number] };
+          setUserLocation(userPos);
+          setShowLocationModal(false);
+          toast.success("Location found!", { description: "Showing items near you." });
+          fetchItemsData(userPos, true);
+        },
+        (error) => {
+          console.error("Location access denied or error:", error);
+          if (error.code === error.PERMISSION_DENIED) {
+             toast.error("Location access requires browser permission", { description: "Please click the lock icon in your address bar to allow Location, then try again." });
+          }
+          setShowLocationModal(true);
+        }
+      );
+    } else {
+      toast.error("Geolocation not supported by your browser");
+      setShowLocationModal(true);
+    }
+  };
+
   // Initialize with data and location
   useEffect(() => {
     if (!user) return;
@@ -114,27 +141,7 @@ export default function Home() {
     fetchMapItems();
 
     // Request Location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const userPos = { type: 'Point' as const, coordinates: [longitude, latitude] as [number, number] };
-          setUserLocation(userPos);
-          toast.success("Location found!", { description: "Showing items near you." });
-          fetchItemsData(userPos, true);
-        },
-        (error) => {
-          console.error("Location access denied or error:", error);
-          toast.error("Location access denied", { description: "Using default location (Guntur)." });
-          setUserLocation(DEFAULT_USER_LOCATION);
-          fetchItemsData(DEFAULT_USER_LOCATION, true);
-        }
-      );
-    } else {
-      toast.error("Geolocation not supported");
-      setUserLocation(DEFAULT_USER_LOCATION);
-      fetchItemsData(DEFAULT_USER_LOCATION, true);
-    }
+    requestUserLocation();
   }, [user, selectedCategory]);
 
   // Handle search with debounce
@@ -400,6 +407,12 @@ export default function Home() {
         isOpen={isAddItemModalOpen}
         onClose={() => setIsAddItemModalOpen(false)}
         onSuccess={handleAddItemSuccess}
+      />
+      
+      {/* Location Required Modal */}
+      <LocationRequiredModal
+        isOpen={showLocationModal}
+        onRetry={requestUserLocation}
       />
     </div>
   );

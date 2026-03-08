@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Navbar } from '@/components/Navbar';
 import { AddItemModal } from '@/components/AddItemModal';
+import { ReviewModal } from '@/components/ReviewModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ItemCard } from '@/components/ItemCard';
-import { Package, ArrowUpRight, ArrowDownLeft, IndianRupee, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Package, ArrowUpRight, ArrowDownLeft, IndianRupee, CheckCircle2, Clock, XCircle, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Item } from '@/types';
 import {
@@ -27,6 +28,8 @@ import {
     deleteItem,
     fetchUserLendingHistory,
     fetchUserBorrowingHistory,
+    checkReviewExists,
+    updateRequestStatus,
     type HistoryItem,
     type PaginatedUserItems,
 } from '@/lib/db';
@@ -42,6 +45,12 @@ export default function ProfilePage() {
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Item | null>(null);
     const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
+    
+    // Review Modal State
+    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+    const [reviewTransaction, setReviewTransaction] = useState<HistoryItem | null>(null);
+    const [revieweeId, setRevieweeId] = useState<string>('');
+    const [reviewedTransactions, setReviewedTransactions] = useState<Set<string>>(new Set());
 
     // Pagination state for listings
     const [listingsLastDoc, setListingsLastDoc] = useState<any>(null);
@@ -80,6 +89,19 @@ export default function ProfilePage() {
                 ]);
                 setLendingHistory(lendResult);
                 setBorrowingHistory(borrowResult);
+                
+                // Check which completed transactions are already reviewed by this user
+                const reviewedSet = new Set<string>();
+                await Promise.all(
+                    [...lendResult, ...borrowResult]
+                        .filter(tx => tx.status === 'completed')
+                        .map(async (tx) => {
+                            const exists = await checkReviewExists(tx.requestId, user.uid);
+                            if (exists) reviewedSet.add(tx.requestId);
+                        })
+                );
+                setReviewedTransactions(reviewedSet);
+                
                 await loadListings(true);
             } catch (err) {
                 console.error(err);
@@ -107,12 +129,31 @@ export default function ProfilePage() {
     };
 
     const StatusIcon = ({ status }: { status: HistoryItem['status'] }) => {
-        if (status === 'accepted') return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+        if (status === 'accepted' || status === 'completed') return <CheckCircle2 className="w-4 h-4 text-green-500" />;
         if (status === 'rejected') return <XCircle className="w-4 h-4 text-red-500" />;
         return <Clock className="w-4 h-4 text-yellow-500" />;
     };
 
-    const HistoryCard = ({ item, role }: { item: HistoryItem; role: 'lender' | 'borrower' }) => (
+    const handleCompleteRequest = async (requestId: string) => {
+        try {
+            await updateRequestStatus(requestId, 'completed');
+            setLendingHistory(prev => prev.map(item => item.requestId === requestId ? { ...item, status: 'completed' } : item));
+            setBorrowingHistory(prev => prev.map(item => item.requestId === requestId ? { ...item, status: 'completed' } : item));
+            toast.success('Transaction marked as completed. You can now leave a review.');
+        } catch (error) {
+            toast.error('Failed to update status');
+        }
+    };
+
+    const HistoryCard = ({ item, role }: { item: HistoryItem; role: 'lender' | 'borrower' }) => {
+        // Need to determine the reviewee ID. 
+        // If I am the lender, the reviewee is the borrower. The `HistoryItem` currently lacks the raw ID of the other party directly.
+        // Wait, HistoryCard doesn't have the other party's ID cleanly exposed without a fetch.
+        // Let's assume we handle it by fetching or using `message`? The DB functions check requests but let's see.
+        // Actually, we can fetch the request document if needed, or pass it. 
+        // For simplicity, we can initiate the review and lookup the IDs if missing.
+
+        return (
         <div className="bg-card border rounded-xl p-4 flex gap-4 items-center shadow-sm hover:shadow-md transition-shadow">
             {item.itemImage ? (
                 <img src={item.itemImage} alt={item.itemTitle} className="w-16 h-16 object-cover rounded-lg shrink-0" />
@@ -134,7 +175,7 @@ export default function ProfilePage() {
             <div className="flex flex-col items-end gap-2 shrink-0">
                 <div className="flex items-center gap-1">
                     <StatusIcon status={item.status} />
-                    <Badge variant={item.status === 'accepted' ? 'default' : item.status === 'rejected' ? 'destructive' : 'secondary'} className="capitalize text-xs">
+                    <Badge variant={item.status === 'accepted' || item.status === 'completed' ? 'default' : item.status === 'rejected' ? 'destructive' : 'secondary'} className="capitalize text-xs">
                         {item.status}
                     </Badge>
                 </div>
@@ -147,9 +188,42 @@ export default function ProfilePage() {
                 {item.paymentStatus === 'paid' && (
                     <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Paid</Badge>
                 )}
+                
+                {/* Actions */}
+                <div className="flex gap-2 mt-2">
+                    {item.status === 'accepted' && role === 'lender' && (
+                        <button 
+                            onClick={() => handleCompleteRequest(item.requestId)}
+                            className="text-xs bg-primary/10 text-primary hover:bg-primary/20 px-2 py-1 rounded transition-colors font-medium"
+                        >
+                            Mark Completed
+                        </button>
+                    )}
+                    
+                    {item.status === 'completed' && !reviewedTransactions.has(item.requestId) && (
+                        <button 
+                            onClick={async () => {
+                                setRevieweeId(item.otherPartyId);
+                                setReviewTransaction(item);
+                                setIsReviewModalOpen(true);
+                            }}
+                            className="text-xs bg-accent/10 text-accent hover:bg-accent/20 px-2 py-1 rounded transition-colors font-medium flex items-center gap-1"
+                        >
+                            <Star className="w-3 h-3 fill-accent/50" />
+                            Leave Review
+                        </button>
+                    )}
+                    
+                    {item.status === 'completed' && reviewedTransactions.has(item.requestId) && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Reviewed
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
-    );
+        );
+    };
 
     const EmptyState = ({ message }: { message: string }) => (
         <div className="text-center py-12 text-muted-foreground bg-secondary/30 rounded-xl border border-dashed border-border">
@@ -330,6 +404,25 @@ export default function ProfilePage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            
+            <ReviewModal
+               isOpen={isReviewModalOpen}
+               transaction={reviewTransaction}
+               onClose={() => {
+                   setIsReviewModalOpen(false);
+                   setReviewTransaction(null);
+               }}
+               onSuccess={() => {
+                   if (reviewTransaction) {
+                       setReviewedTransactions(prev => new Set(prev).add(reviewTransaction.requestId));
+                   }
+                   // Also refresh history to update the trust score UI if needed
+                   if (user) {
+                       fetchUserLendingHistory(user.uid).then(setLendingHistory);
+                   }
+               }}
+               revieweeId={revieweeId}
+            />
         </div>
     );
 }
