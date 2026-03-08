@@ -2,12 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   typescript: {
-    // ⚠️ Temporarily ignore build errors in unused UI component templates
-    // The main app code (AddItemModal, mockData, etc.) has been fixed
+    // Pre-existing type errors in unused UI template files — runtime is unaffected
     ignoreBuildErrors: true,
   },
   images: {
-    minimumCacheTTL: 0,
+    // Short cache TTL so updated assets (like logo) propagate quickly
+    minimumCacheTTL: 60,
+    unoptimized: true,
   },
 };
 

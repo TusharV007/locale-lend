@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Local Share
+
+A hyperlocal neighborhood item sharing platform built with Next.js and Firebase.
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Styling**: Tailwind CSS v4
+- **Auth & DB**: Firebase (Auth + Firestore)
+- **UI**: Radix UI + shadcn/ui components
+- **Maps**: Leaflet / react-leaflet
+- **Animations**: Framer Motion
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+cd frontend
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploying to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push the `frontend/` folder to a GitHub repository
+2. Go to [vercel.com/new](https://vercel.com/new) and import the repo
+3. Set the **Root Directory** to `frontend` (if deploying from the monorepo root)
+4. Click **Deploy** — Vercel auto-detects Next.js, no extra config needed
 
-## Learn More
+Or use the Vercel CLI:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cd frontend
+npx vercel
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment Variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Firebase config is currently bundled in the source. For a cleaner setup, move these to environment variables:
 
-## Deploy on Vercel
+| Variable                                   | Description          |
+| ------------------------------------------ | -------------------- |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`             | Firebase API key     |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`         | Firebase auth domain |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID`          | Firebase project ID  |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`      | Storage bucket       |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Messaging sender ID  |
+| `NEXT_PUBLIC_FIREBASE_APP_ID`              | Firebase app ID      |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev        # Start dev server
+npm run build      # Build for production
+npm run start      # Start production server
+npm test           # Run unit tests
+npm run test:coverage  # Coverage report
+```
