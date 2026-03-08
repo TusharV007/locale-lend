@@ -793,5 +793,45 @@ export const checkReviewExists = async (requestId: string, reviewerId: string): 
     }
 };
 
+export const fetchUserProfile = async (userId: string): Promise<User | null> => {
+    try {
+        const docRef = doc(db, USERS_COLLECTION, userId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            return {
+                id: docSnap.id,
+                ...data,
+                memberSince: parseDate(data.memberSince),
+            } as User;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching user profile:", error);
+        throw error;
+    }
+};
+
+export const updateUserProfile = async (userId: string, updates: Partial<User>) => {
+    try {
+        const userRef = doc(db, USERS_COLLECTION, userId);
+        
+        // Handle nested BankDetails timestamp if present
+        const processedUpdates: any = { ...updates };
+        if (updates.bankDetails) {
+            processedUpdates.bankDetails = {
+                ...updates.bankDetails,
+                updatedAt: Timestamp.now()
+            };
+        }
+
+        await updateDoc(userRef, processedUpdates);
+    } catch (error) {
+        console.error("Error updating user profile:", error);
+        throw error;
+    }
+};
+
+
 
 

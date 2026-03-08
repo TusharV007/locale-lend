@@ -22,6 +22,16 @@ interface PaymentModalProps {
     onSuccess: () => void;
 }
 
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
+
 export function PaymentModal({
     isOpen,
     onClose,
@@ -45,30 +55,104 @@ export function PaymentModal({
 
     const handlePay = async () => {
         if (!user) return;
+        console.log("Initializing payment of:", amount, "for:", itemTitle);
         setIsPaying(true);
         try {
-            // Simulate payment processing delay
-            await new Promise(res => setTimeout(res, 1500));
-            await createPayment({
-                requestId,
-                itemId,
-                itemTitle,
-                payerId: user.uid,
-                payerName: user.displayName || 'Unknown',
-                receiverId: lenderId,
-                receiverName: lenderName,
-                amount,
-                currency: 'INR',
+            if (amount === 0) {
+                // Free transaction bypass
+                await createPayment({
+                    requestId,
+                    itemId,
+                    itemTitle,
+                    payerId: user.uid,
+                    payerName: user.displayName || 'Unknown',
+                    receiverId: lenderId,
+                    receiverName: lenderName,
+                    amount: 0,
+                    currency: 'INR',
+                });
+                setPaid(true);
+                toast.success('Confirmed successfully!');
+                setTimeout(() => { onSuccess(); onClose(); }, 1500);
+                return;
+            }
+
+            // Load Razorpay
+            const res = await loadRazorpayScript();
+            if (!res) {
+                toast.error('Razorpay SDK failed to load. Are you online?');
+                return;
+            }
+
+            // Create Order
+            const result = await fetch('/api/razorpay/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount, requestId })
             });
-            setPaid(true);
-            toast.success('Payment successful!', { description: `₹${amount} sent to ${lenderName}` });
-            setTimeout(() => {
-                onSuccess();
-                onClose();
-            }, 1500);
+
+            if (!result.ok) throw new Error('Failed to create order');
+            const order = await result.json();
+
+            // Open Checkout
+            const options = {
+                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+                amount: order.amount,
+                currency: order.currency,
+                name: 'LocalShare',
+                description: `Rental payment for ${itemTitle}`,
+                order_id: order.id,
+                handler: async function (response: any) {
+                    try {
+                        const verifyRes = await fetch('/api/razorpay/verify', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(response)
+                        });
+                        
+                        if (verifyRes.ok) {
+                            await createPayment({
+                                requestId,
+                                itemId,
+                                itemTitle,
+                                payerId: user.uid,
+                                payerName: user.displayName || 'Unknown',
+                                receiverId: lenderId,
+                                receiverName: lenderName,
+                                amount,
+                                currency: 'INR',
+                            });
+                            setPaid(true);
+                            toast.success('Payment successful!', { description: `₹${amount} sent to ${lenderName}` });
+                            setTimeout(() => { onSuccess(); onClose(); }, 1500);
+                        } else {
+                            toast.error('Payment verification failed. Please contact support.');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        toast.error('Error verifying payment.');
+                    }
+                },
+                prefill: {
+                    name: user.displayName || '',
+                    email: user.email || '',
+                },
+                theme: { color: "#22c55e" },
+                modal: {
+                    ondismiss: function() {
+                        setIsPaying(false);
+                    }
+                }
+            };
+
+            const paymentObject = new (window as any).Razorpay(options);
+            paymentObject.on('payment.failed', function (response: any) {
+                toast.error(response.error.description || 'Payment Failed');
+            });
+            paymentObject.open();
         } catch (error) {
-            toast.error('Payment failed. Please try again.');
-        } finally {
+            console.error(error);
+            toast.error('Payment initialization failed. Please try again.');
             setIsPaying(false);
         }
     };
@@ -100,8 +184,10 @@ export function PaymentModal({
                                 <CreditCard className="w-5 h-5 text-primary" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold">Complete Payment</h2>
-                                <p className="text-xs text-muted-foreground">Simulated secure payment</p>
+                                <h2 className="text-lg font-bold">Secure Payment</h2>
+                                <p className="text-xs text-green-600 flex items-center gap-1 font-medium">
+                                    <Shield className="w-3 h-3" /> Secure via Razorpay
+                                </p>
                             </div>
                         </div>
                         <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full transition-colors">
@@ -149,19 +235,20 @@ export function PaymentModal({
                                     )}
                                 </div>
 
-                                {/* Mock card */}
-                                <div className="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <CreditCard className="w-6 h-6 text-primary" />
-                                        <Shield className="w-4 h-4 text-primary/60" />
+                                {/* Razorpay branding */}
+                                <div className="flex flex-col items-center justify-center py-4 px-6 border border-dashed rounded-xl bg-secondary/30">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <CreditCard className="w-5 h-5 text-muted-foreground" />
+                                        <span className="text-sm font-medium text-muted-foreground">Credit / Debit / UPI / NetBanking</span>
                                     </div>
-                                    <p className="text-xs text-muted-foreground font-mono tracking-widest">•••• •••• •••• 4242</p>
-                                    <p className="text-xs text-muted-foreground">Demo Card · Expires 12/28</p>
+                                    <p className="text-[10px] text-muted-foreground/60 text-center">
+                                        You will be redirected to Razorpay's secure checkout
+                                    </p>
                                 </div>
 
-                                <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+                                <p className="text-[10px] text-muted-foreground/60 text-center flex items-center justify-center gap-1">
                                     <Shield className="w-3 h-3" />
-                                    This is a simulated payment for demonstration purposes.
+                                    Your payment is processed securely. We don't store your card details.
                                 </p>
 
                                 <div className="flex gap-3 pt-2">

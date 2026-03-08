@@ -8,8 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { User, Mail, MapPin, Calendar, Package, TrendingUp, Award, LogOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchUserItems } from '@/lib/db';
-import type { Item } from '@/types';
+import { fetchUserItems, fetchUserProfile, updateUserProfile } from '@/lib/db';
+import type { Item, BankDetails, User as UserType } from '@/types';
 
 export default function SettingsPage() {
     const { user, loading: authLoading, logout } = useAuth();
@@ -17,6 +17,14 @@ export default function SettingsPage() {
     const [userItems, setUserItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+    const [isSavingBank, setIsSavingBank] = useState(false);
+    const [bankDetails, setBankDetails] = useState<BankDetails>({
+        accountName: '',
+        accountNumber: '',
+        ifscCode: '',
+        bankName: '',
+        updatedAt: new Date()
+    });
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -28,8 +36,15 @@ export default function SettingsPage() {
         const loadUserData = async () => {
             if (!user) return;
             try {
-                const result = await fetchUserItems(user.uid);
-                setUserItems(result.items);
+                const [itemsResult, profileResult] = await Promise.all([
+                    fetchUserItems(user.uid),
+                    fetchUserProfile(user.uid)
+                ]);
+                
+                setUserItems(itemsResult.items);
+                if (profileResult?.bankDetails) {
+                    setBankDetails(profileResult.bankDetails);
+                }
             } catch (error) {
                 console.error('Failed to load user data:', error);
             } finally {
@@ -41,6 +56,31 @@ export default function SettingsPage() {
             loadUserData();
         }
     }, [user]);
+
+    const handleSaveBankDetails = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user) return;
+
+        // Basic validation
+        if (bankDetails.ifscCode.length !== 11) {
+            toast.error('IFSC Code must be 11 characters');
+            return;
+        }
+        if (bankDetails.accountNumber.length < 9) {
+            toast.error('Please enter a valid Account Number');
+            return;
+        }
+
+        setIsSavingBank(true);
+        try {
+            await updateUserProfile(user.uid, { bankDetails });
+            toast.success('Payout information updated!');
+        } catch (error) {
+            toast.error('Failed to save bank details');
+        } finally {
+            setIsSavingBank(false);
+        }
+    };
 
     const handleLogout = async () => {
         try {
@@ -193,6 +233,86 @@ export default function SettingsPage() {
                             </div>
                         </div>
                     </div>
+                </motion.div>
+ 
+                {/* Payout Information (Bank Details) */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.25 }}
+                    className="bg-card border rounded-2xl p-6 mb-6 shadow-sm"
+                >
+                    <div className="flex items-center gap-2 mb-6">
+                        <TrendingUp className="w-5 h-5 text-primary" />
+                        <h3 className="text-lg font-semibold">Payout Information</h3>
+                    </div>
+
+                    <form onSubmit={handleSaveBankDetails} className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Account Holder Name</label>
+                                <input
+                                    type="text"
+                                    value={bankDetails.accountName}
+                                    onChange={e => setBankDetails({ ...bankDetails, accountName: e.target.value })}
+                                    className="w-full px-4 py-2 rounded-lg border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                    placeholder="Full name as per bank"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Bank Name</label>
+                                <input
+                                    type="text"
+                                    value={bankDetails.bankName}
+                                    onChange={e => setBankDetails({ ...bankDetails, bankName: e.target.value })}
+                                    className="w-full px-4 py-2 rounded-lg border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                    placeholder="e.g. HDFC Bank"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Account Number</label>
+                                <input
+                                    type="text"
+                                    value={bankDetails.accountNumber}
+                                    onChange={e => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
+                                    className="w-full px-4 py-2 rounded-lg border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                    placeholder="Enter account number"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">IFSC Code</label>
+                                <input
+                                    type="text"
+                                    value={bankDetails.ifscCode}
+                                    onChange={e => setBankDetails({ ...bankDetails, ifscCode: e.target.value.toUpperCase() })}
+                                    maxLength={11}
+                                    className="w-full px-4 py-2 rounded-lg border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all uppercase"
+                                    placeholder="e.g. HDFC0001234"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-2">
+                            <button
+                                type="submit"
+                                disabled={isSavingBank}
+                                className="w-full sm:w-auto px-6 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {isSavingBank ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        Saving...
+                                    </>
+                                ) : (
+                                    'Save Payout Information'
+                                )}
+                            </button>
+                        </div>
+                    </form>
                 </motion.div>
 
                 {/* Actions */}

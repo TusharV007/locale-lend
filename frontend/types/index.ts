@@ -14,6 +14,15 @@ export interface GeoJSONPoint {
   coordinates: [number, number]; // [longitude, latitude] - GeoJSON standard
 }
 
+// Bank details for payouts
+export interface BankDetails {
+  accountName: string;
+  accountNumber: string;
+  ifscCode: string;
+  bankName: string;
+  updatedAt: Date;
+}
+
 // User schema - represents a neighbor in the community
 export interface User {
   id: string;
@@ -30,6 +39,7 @@ export interface User {
   itemsBorrowedCount: number;
   memberSince: Date;
   verified: boolean;
+  bankDetails?: BankDetails;
 }
 
 // Item schema - represents a shareable resource

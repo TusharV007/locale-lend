@@ -41,7 +41,7 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
         description: '',
         category: 'Tools',
         image: '',
-        rentalPricePerDay: 0,
+        rentalPricePerDay: 1,
     });
 
     // Pre-fill form when editing
@@ -57,13 +57,13 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
                 description: editItem.description || '',
                 category: editItem.category || 'Tools',
                 image: editItem.images?.[0] || '',
-                rentalPricePerDay: (editItem as any).rentalPricePerDay || 0,
+                rentalPricePerDay: (editItem as any).rentalPricePerDay || 1,
             });
             if (editItem.location) {
                 setLocation(editItem.location);
             }
         } else {
-            setFormData({ title: '', description: '', category: 'Tools', image: '', rentalPricePerDay: 0 });
+            setFormData({ title: '', description: '', category: 'Tools', image: '', rentalPricePerDay: 1 });
             setLocation(null);
             setLocationError(null);
         }
@@ -123,6 +123,9 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
             }
             if (!isEditMode && !formData.image) {
                 throw new Error('Please upload an item image');
+            }
+            if (formData.rentalPricePerDay <= 0) {
+                throw new Error('Rental price must be at least ₹1 per day');
             }
 
             const itemLocation: GeoJSONPoint = location || { type: 'Point' as const, coordinates: [80.4365, 16.3067] };
@@ -282,15 +285,14 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
                                         <Input
                                             id="rentalPrice"
                                             type="number"
-                                            min={0}
-                                            step={1}
                                             value={formData.rentalPricePerDay}
-                                            onChange={e => setFormData({ ...formData, rentalPricePerDay: parseFloat(e.target.value) || 0 })}
+                                            onChange={e => setFormData({ ...formData, rentalPricePerDay: parseFloat(e.target.value) })}
                                             className="pl-7"
-                                            placeholder="0"
+                                            placeholder="Enter amount"
+                                            required
                                         />
                                     </div>
-                                    <p className="text-xs text-muted-foreground">Set to 0 for free sharing</p>
+                                    <p className="text-xs text-muted-foreground">Minimum price is ₹1 per day</p>
                                 </div>
 
                                 {/* Location */}
