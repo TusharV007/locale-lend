@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Star, Clock, User, Navigation } from 'lucide-react';
+import { MapPin, Star, Clock, Navigation, Edit, Trash2 } from 'lucide-react';
 import type { Item } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,9 +15,24 @@ interface ItemCardProps {
   item: Item;
   onRequestClick: (item: Item) => void;
   index?: number;
+  currentUserId?: string;
+  isOwnerView?: boolean;
+  onEdit?: (item: Item) => void;
+  onDelete?: (item: Item) => void;
+  onStatusChange?: (item: Item, status: string) => void;
 }
 
-export function ItemCard({ item, onRequestClick, index = 0 }: ItemCardProps) {
+export function ItemCard({ 
+  item, 
+  onRequestClick, 
+  index = 0,
+  currentUserId,
+  isOwnerView = false,
+  onEdit,
+  onDelete,
+  onStatusChange
+}: ItemCardProps) {
+  const isOwner = currentUserId === item.owner.id || isOwnerView;
   const [showLocationMap, setShowLocationMap] = useState(false);
 
   const statusColors: Record<string, string> = {
@@ -80,66 +95,97 @@ export function ItemCard({ item, onRequestClick, index = 0 }: ItemCardProps) {
           </div>
 
           <div className="mt-auto flex flex-col gap-3">
-            {/* Owner info */}
-            <div className="flex items-center justify-between pt-3 border-t border-border">
-              <div className="flex items-center gap-2 overflow-hidden">
-                {item.owner.avatar && item.owner.avatar !== 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80' ? (
-                  <img
-                    src={item.owner.avatar}
-                    alt={item.owner.name}
-                    className="w-8 h-8 shrink-0 rounded-full object-cover border-2 border-primary/20"
-                  />
-                ) : (
-                  <div className="w-8 h-8 shrink-0 rounded-full bg-secondary text-primary font-semibold flex flex-col pt-[1px] items-center justify-center">
-                    <span>{item.owner.name?.charAt(0)?.toUpperCase()}</span>
-                  </div>
-                )}
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-medium text-card-foreground truncate">
-                    {item.owner.name}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Star className="w-3 h-3 text-accent fill-accent" />
-                    <span className="text-xs text-muted-foreground">
-                      {item.owner.trustScore.toFixed(1)}
+            {/* Owner info - hidden in owner view since it's redundant */}
+            {!isOwnerView && (
+              <div className="flex items-center justify-between pt-3 border-t border-border">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  {item.owner.avatar && item.owner.avatar !== 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80' ? (
+                    <img
+                      src={item.owner.avatar}
+                      alt={item.owner.name}
+                      className="w-8 h-8 shrink-0 rounded-full object-cover border-2 border-primary/20"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-secondary text-primary font-semibold flex flex-col pt-[1px] items-center justify-center">
+                      <span>{item.owner.name?.charAt(0)?.toUpperCase()}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-card-foreground truncate">
+                      {item.owner.name}
                     </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Star className="w-3 h-3 text-accent fill-accent" />
+                      <span className="text-xs text-muted-foreground">
+                        {item.owner.trustScore.toFixed(1)}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                <Clock className="w-3 h-3" />
-                {item.borrowCount} borrows
+                <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                  <Clock className="w-3 h-3" />
+                  {item.borrowCount} borrows
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Action buttons */}
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 px-2 whitespace-normal h-auto min-h-[36px]"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowLocationMap(true);
-                }}
-              >
-                <Navigation className="w-4 h-4 mr-1 shrink-0" />
-                <span>View Map</span>
-              </Button>
+            <div className="pt-2">
+              {isOwnerView ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={(e) => { e.stopPropagation(); onEdit?.(item); }}>
+                      <Edit className="w-3.5 h-3.5 mr-1" /> Edit
+                    </Button>
+                    <Button size="sm" variant="destructive" className="flex-1" onClick={(e) => { e.stopPropagation(); onDelete?.(item); }}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                    </Button>
+                  </div>
+                  <select
+                    className="w-full text-sm border bg-background rounded-md px-3 py-1.5 focus:ring-1 focus:ring-primary outline-none transition-colors"
+                    value={item.status || 'available'}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      onStatusChange?.(item, e.target.value);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <option value="available">🟢 Available</option>
+                    <option value="lended">🔵 Lended Out</option>
+                    <option value="unavailable">🔴 Unavailable</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 px-2 whitespace-normal h-auto min-h-[36px]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowLocationMap(true);
+                    }}
+                  >
+                    <Navigation className="w-4 h-4 mr-1 shrink-0" />
+                    <span>View Map</span>
+                  </Button>
 
-              {(item.status === 'available' || !item.status) && (
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="flex-1 px-2 whitespace-normal h-auto min-h-[36px]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRequestClick(item);
-                  }}
-                >
-                  {(item as any).rentalPricePerDay > 0 ? `₹${(item as any).rentalPricePerDay}/day` : 'Request'}
-                </Button>
+                  {(item.status === 'available' || !item.status) && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="flex-1 px-2 whitespace-normal h-auto min-h-[36px]"
+                      disabled={isOwner}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRequestClick(item);
+                      }}
+                    >
+                      {isOwner ? 'Your Item' : ((item as any).rentalPricePerDay > 0 ? `₹${(item as any).rentalPricePerDay}/day` : 'Request')}
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </div>

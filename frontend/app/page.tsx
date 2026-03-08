@@ -187,8 +187,11 @@ export default function Home() {
     fetchItemsData(userLocation || DEFAULT_USER_LOCATION, true);
   };
 
-  // Sort and filter items for display
-  const sortedItems = [...nearbyItems].sort((a, b) => {
+  // Sort and filter items for display (exluding user's own items and unavailable items)
+  const sortedItems = [...nearbyItems]
+    .filter(item => item.owner.id !== user?.uid)
+    .filter(item => item.status === 'available' || !item.status)
+    .sort((a, b) => {
     // Priority 1: Available items first
     const statusA = a.status || 'available';
     const statusB = b.status || 'available';
@@ -338,6 +341,7 @@ export default function Home() {
                   key={item.id}
                   item={item}
                   index={index}
+                  currentUserId={user?.uid}
                   onRequestClick={handleRequestClick}
                 />
               ))}

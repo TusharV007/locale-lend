@@ -283,43 +283,26 @@ export default function ProfilePage() {
                             <>
                                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {listings.map((item, idx) => (
-                                        <div key={item.id} className="relative group">
-                                            <ItemCard item={item} index={idx} onRequestClick={() => { }} />
-                                            <div className="absolute top-2 right-2 flex gap-1.5 bg-background/90 backdrop-blur-sm rounded-md shadow-sm border p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={() => handleEditItem(item)}
-                                                    className="text-primary hover:text-primary/80 px-2 py-0.5 text-xs font-medium hover:bg-primary/10 rounded transition-colors"
-                                                    title="Edit item"
-                                                >
-                                                    Edit
-                                                </button>
-                                                <select
-                                                    className="text-xs bg-transparent border-none focus:ring-0 cursor-pointer outline-none"
-                                                    value={item.status || 'available'}
-                                                    onChange={async (e) => {
-                                                        const newStatus = e.target.value as any;
-                                                        try {
-                                                            await updateItemStatus(item.id, newStatus);
-                                                            setListings(prev => prev.map(l => l.id === item.id ? { ...l, status: newStatus } : l));
-                                                            toast.success(`Status → ${newStatus}`);
-                                                        } catch { toast.error('Failed to update status'); }
-                                                    }}
-                                                >
-                                                    <option value="available">Available</option>
-                                                    <option value="lended">Lended</option>
-                                                    <option value="unavailable">Unavailable</option>
-                                                </select>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setItemToDelete(item);
-                                                    }}
-                                                    className="text-red-600 hover:text-red-700 px-2 py-0.5 text-xs font-medium hover:bg-red-50 rounded transition-colors"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <ItemCard 
+                                            key={item.id} 
+                                            item={item} 
+                                            index={idx} 
+                                            isOwnerView={true}
+                                            onRequestClick={() => {}}
+                                            onEdit={handleEditItem}
+                                            onDelete={(itemToDelete) => {
+                                                setItemToDelete(itemToDelete);
+                                            }}
+                                            onStatusChange={async (itemToUpdate, newStatus) => {
+                                                try {
+                                                    await updateItemStatus(itemToUpdate.id, newStatus as any);
+                                                    setListings(prev => prev.map(l => l.id === itemToUpdate.id ? { ...l, status: newStatus as any } : l));
+                                                    toast.success(`Status → ${newStatus}`);
+                                                } catch { 
+                                                    toast.error('Failed to update status'); 
+                                                }
+                                            }}
+                                        />
                                     ))}
                                 </div>
 

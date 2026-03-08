@@ -110,9 +110,10 @@ function SearchPageContent() {
     };
 
     // Filter and sort items
-    const filteredItems = selectedCategory
-        ? items.filter(item => item.category === selectedCategory)
-        : items;
+    const filteredItems = items
+        .filter(item => item.owner.id !== user?.uid)
+        .filter(item => item.status === 'available' || !item.status)
+        .filter(item => selectedCategory ? item.category === selectedCategory : true);
 
     const sortedItems = [...filteredItems].sort((a, b) => {
         const statusA = a.status || 'available';
@@ -250,6 +251,7 @@ function SearchPageContent() {
                                 key={item.id}
                                 item={item}
                                 index={index}
+                                currentUserId={user?.uid}
                                 onRequestClick={handleRequestClick}
                             />
                         ))}
