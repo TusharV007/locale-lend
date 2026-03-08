@@ -692,54 +692,57 @@ export const createReview = async (review: Omit<Review, "id" | "createdAt">) => 
             createdAt: Timestamp.now()
         });
 
-        // 1. Fetch user to update their stats
-        const userRef = doc(db, USERS_COLLECTION, review.revieweeId);
-        const userDoc = await getDoc(userRef);
+        // Update user stats and notify - wrap in try-catch to avoid blocking the main review submission
+        try {
+            // 1. Fetch user to update their stats
+            const userRef = doc(db, USERS_COLLECTION, review.revieweeId);
+            const userDoc = await getDoc(userRef);
 
-        if (userDoc.exists()) {
-            const userData = userDoc.data() as User;
-            const currentTotalReviews = userData.totalReviews || 0;
-            const currentTotalRating = (userData.trustScore || 3.0) * currentTotalReviews; // approximation or we can pull averageReviewRating if it exists
+            if (userDoc.exists()) {
+                const userData = userDoc.data() as User;
+                
+                // 2. Fetch all reviews for this user to get exact average
+                const allReviewsQ = query(collection(db, REVIEWS_COLLECTION), where("revieweeId", "==", review.revieweeId));
+                const allReviewsSnap = await getDocs(allReviewsQ);
+                
+                let totalRating = 0;
+                allReviewsSnap.docs.forEach(d => {
+                    totalRating += d.data().rating;
+                });
+                const newTotalReviews = allReviewsSnap.docs.length;
+                const newAverageRating = totalRating / newTotalReviews;
 
-            // 2. Fetch all reviews for this user to get exact average
-            const allReviewsQ = query(collection(db, REVIEWS_COLLECTION), where("revieweeId", "==", review.revieweeId));
-            const allReviewsSnap = await getDocs(allReviewsQ);
-            
-            let totalRating = 0;
-            allReviewsSnap.docs.forEach(d => {
-                totalRating += d.data().rating;
+                // 3. Re-calculate Trust Score
+                const trustResult = calculateTrustScore({
+                    averageReviewRating: newAverageRating,
+                    totalReviews: newTotalReviews,
+                    successfulReturns: userData.itemsBorrowedCount || 0,
+                    totalBorrowings: userData.itemsBorrowedCount || 0,
+                    successfulLends: userData.itemsLentCount || 0,
+                    totalLendings: userData.itemsLentCount || 0,
+                    isVerified: userData.verified || false,
+                    accountAgeDays: Math.floor((new Date().getTime() - parseDate(userData.memberSince).getTime()) / (1000 * 3600 * 24)) || 0,
+                });
+
+                // 4. Update the user record
+                await updateDoc(userRef, {
+                    totalReviews: newTotalReviews,
+                    trustScore: trustResult.score,
+                });
+            }
+
+            // Notify reviewee
+            await createNotification({
+                userId: review.revieweeId,
+                type: 'request_accepted', // Using an existing type for now
+                title: 'New Review Received! ⭐',
+                message: `${review.reviewerName} left you a ${review.rating}-star review for "${review.itemTitle}".`,
+                requestId: review.requestId,
+                itemTitle: review.itemTitle,
             });
-            const newTotalReviews = allReviewsSnap.docs.length;
-            const newAverageRating = totalRating / newTotalReviews;
-
-            // 3. Re-calculate Trust Score
-            const trustResult = calculateTrustScore({
-                averageReviewRating: newAverageRating,
-                totalReviews: newTotalReviews,
-                successfulReturns: userData.itemsBorrowedCount || 0, // approximation
-                totalBorrowings: userData.itemsBorrowedCount || 0,
-                successfulLends: userData.itemsLentCount || 0,
-                totalLendings: userData.itemsLentCount || 0,
-                isVerified: userData.verified || false,
-                accountAgeDays: Math.floor((new Date().getTime() - parseDate(userData.memberSince).getTime()) / (1000 * 3600 * 24)) || 0,
-            });
-
-            // 4. Update the user record
-            await updateDoc(userRef, {
-                totalReviews: newTotalReviews,
-                trustScore: trustResult.score,
-            });
+        } catch (subErr) {
+            console.warn("Review stats update or notification failed, but review was saved:", subErr);
         }
-
-        // Notify reviewee
-        await createNotification({
-            userId: review.revieweeId,
-            type: 'request_accepted', // Using an existing type for now
-            title: 'New Review Received! ⭐',
-            message: `${review.reviewerName} left you a ${review.rating}-star review for "${review.itemTitle}".`,
-            requestId: review.requestId,
-            itemTitle: review.itemTitle,
-        });
 
         return docRef.id;
     } catch (error) {
