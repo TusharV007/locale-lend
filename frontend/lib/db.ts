@@ -493,6 +493,26 @@ export const sendMessage = async (requestId: string, senderId: string, content: 
     try {
         const messagesRef = collection(db, REQUESTS_COLLECTION, requestId, MESSAGES_SUBCOLLECTION);
         await addDoc(messagesRef, { requestId, senderId, content, createdAt: Timestamp.now() });
+
+        // Fetch parent request to determine recipient
+        const requestDoc = await getDoc(doc(db, REQUESTS_COLLECTION, requestId));
+        if (requestDoc.exists()) {
+            const requestData = requestDoc.data();
+            
+            const isSenderLender = senderId === requestData.lenderId;
+            const recipientId = isSenderLender ? requestData.borrowerId : requestData.lenderId;
+            const senderName = isSenderLender ? requestData.lenderName : requestData.borrowerName;
+
+            // Notify the recipient
+            await createNotification({
+                userId: recipientId,
+                type: 'new_message',
+                title: 'New Message 💬',
+                message: `${senderName.split(' ')[0]}: "${content.length > 50 ? content.slice(0, 50) + '...' : content}"`,
+                requestId: requestId,
+                itemTitle: requestData.itemTitle,
+            });
+        }
     } catch (error) {
         console.error("Error sending message:", error);
         throw error;
@@ -556,7 +576,7 @@ export const fetchUserPayments = async (userId: string): Promise<Payment[]> => {
 export interface NotificationData {
     id: string;
     userId: string;
-    type: 'new_request' | 'request_accepted' | 'request_rejected';
+    type: 'new_request' | 'request_accepted' | 'request_rejected' | 'new_message';
     title: string;
     message: string;
     requestId: string;
