@@ -107,7 +107,11 @@ export function NotificationDropdown() {
                                         animate={{ opacity: 1 }}
                                         onClick={() => {
                                             setIsOpen(false);
-                                            router.push('/messages');
+                                            if (n.requestId) {
+                                                router.push(`/messages?chat=${n.requestId}`);
+                                            } else {
+                                                router.push('/messages');
+                                            }
                                         }}
                                         className={`flex items-start gap-3 p-4 cursor-pointer hover:bg-secondary/50 transition-colors ${!n.read ? 'bg-primary/5' : ''}`}
                                     >

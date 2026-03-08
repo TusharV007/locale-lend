@@ -58,6 +58,22 @@ export default function MessagesPage() {
         }
     };
 
+    // Auto-open chat from notification query param
+    useEffect(() => {
+        if (requests.length > 0 && !selectedRequest) {
+            const params = new URLSearchParams(window.location.search);
+            const chatId = params.get('chat');
+            if (chatId) {
+                const req = requests.find(r => r.id === chatId);
+                if (req) {
+                    setSelectedRequest(req);
+                    // Clear the query parameter so it doesn't re-open on manual refresh
+                    window.history.replaceState({}, '', '/messages');
+                }
+            }
+        }
+    }, [requests, selectedRequest]);
+
     if (authLoading || (!user && loading)) {
         return (
             <div className="min-h-screen flex items-center justify-center">
