@@ -39,10 +39,10 @@ export function ItemCard({ item, onRequestClick, index = 0 }: ItemCardProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: index * 0.1 }}
         whileHover={{ y: -4 }}
-        className="group relative bg-card rounded-xl overflow-hidden shadow-card hover:shadow-hover transition-all duration-300"
+        className="group relative bg-card rounded-xl shadow-card hover:shadow-hover transition-all duration-300 flex flex-col"
       >
         {/* Image */}
-        <div className="relative aspect-[4/3] overflow-hidden">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-t-xl">
           <img
             src={item.images[0]}
             alt={item.title}
