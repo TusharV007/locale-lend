@@ -9,6 +9,7 @@ import {
   Package, Wrench, Laptop, ChefHat, Tent, BookOpen, Bike,
   Zap, Heart, RefreshCw, ChevronDown, Quote, Menu, X
 } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 
 // ─── Animation Variants ─────────────────────────────────────────────────────
@@ -170,9 +171,7 @@ function LandingNav({ onCTA }: { onCTA: () => void }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Logo */}
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-soft">
-            <MapPin className="w-4 h-4 text-primary-foreground" />
-          </div>
+          <Image src="/logo.png" alt="Local Share" width={32} height={32} className="rounded-lg" unoptimized />
           <span className="text-xl font-bold text-foreground">Local Share</span>
         </div>
 
@@ -616,9 +615,7 @@ export default function LandingPage() {
             <div className="absolute -bottom-24 -left-24 w-64 h-64 rounded-full bg-accent/8 blur-3xl" />
 
             <div className="relative z-10 space-y-6">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-                <MapPin className="w-8 h-8 text-primary" />
-              </div>
+              <Image src="/logo.png" alt="Local Share" width={48} height={48} className="rounded-xl mx-auto" unoptimized />
               <h2 className="text-4xl md:text-5xl font-bold text-foreground leading-tight">
                 Your neighborhood is<br />
                 <span className="text-primary">waiting for you</span>
@@ -648,9 +645,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-                <MapPin className="w-4 h-4 text-primary-foreground" />
-              </div>
+              <Image src="/logo.png" alt="Local Share" width={28} height={28} className="rounded-lg" unoptimized />
               <span className="font-bold text-foreground">Local Share</span>
             </div>
             <p className="text-sm text-muted-foreground text-center">

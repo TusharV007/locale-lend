@@ -49,7 +49,7 @@ export function Navbar({ className, onAddItemClick, onSearch }: NavbarProps) {
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo */}
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => router.push('/')}>
-            <Image src="/logo.png" alt="Local Share Logo" width={40} height={40} className="rounded-xl object-cover" priority />
+            <Image src="/logo.png" alt="Local Share Logo" width={40} height={40} className="rounded-xl object-cover" priority unoptimized />
             <span className="text-xl font-bold text-foreground hidden sm:block">
               Local <span className="text-primary">Share</span>
             </span>

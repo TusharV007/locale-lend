@@ -6,7 +6,8 @@ import { AuthForm } from '@/components/AuthForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { MapPin, Users, Shield } from 'lucide-react';
+import Image from 'next/image';
+import { Users, Shield, MapPin } from 'lucide-react';
 
 export default function AuthPage() {
     const { user, loading } = useAuth();
@@ -42,9 +43,7 @@ export default function AuthPage() {
 
                 <div className="relative z-10">
                     <Link href="/" className="flex items-center gap-3 mb-12 hover:opacity-80 transition-opacity">
-                        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                            <MapPin className="w-6 h-6" />
-                        </div>
+                        <Image src="/logo.png" alt="Local Share" width={40} height={40} className="rounded-xl" unoptimized />
                         <span className="text-2xl font-bold">Local Share</span>
                     </Link>
 
@@ -85,9 +84,7 @@ export default function AuthPage() {
                     {/* Mobile brand */}
                     <div className="lg:hidden text-center mb-8">
                         <Link href="/" className="inline-flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity">
-                            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                                <MapPin className="w-4 h-4 text-primary-foreground" />
-                            </div>
+                            <Image src="/logo.png" alt="Local Share" width={32} height={32} className="rounded-lg" unoptimized />
                             <span className="text-xl font-bold text-foreground">Local Share</span>
                         </Link>
                         <p className="text-muted-foreground text-sm">Connect with your neighbors</p>

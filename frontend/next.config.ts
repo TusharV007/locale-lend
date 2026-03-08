@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
     // The main app code (AddItemModal, mockData, etc.) has been fixed
     ignoreBuildErrors: true,
   },
+  images: {
+    minimumCacheTTL: 0,
+  },
 };
 
 export default nextConfig;
