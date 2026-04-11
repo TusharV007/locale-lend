@@ -105,7 +105,7 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
             toast.loading('Uploading...', { id: toastId });
             const res = await fetch(compressedBase64);
             const blob = await res.blob();
-            const filename = `items/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+            const filename = `items/${user?.uid || 'anonymous'}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
             const downloadURL = await uploadImage(blob, filename);
             setFormData(prev => ({ ...prev, image: downloadURL }));
             toast.success('Image uploaded!', { id: toastId });
@@ -314,9 +314,9 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
                                         className="w-full"
                                     >
                                         <MapPin className="w-4 h-4 mr-2" />
-                                        {isCapturingLocation ? 'Getting Location...' : location ? 'Location Set ✓' : 'Capture My Location'}
+                                        {isCapturingLocation ? 'Getting Location...' : location ? 'Location Set' : 'Capture My Location'}
                                     </Button>
-                                    {location && <p className="text-xs text-green-600">📍 Location captured successfully</p>}
+                                    {location && <p className="text-xs text-green-600 flex items-center gap-1"><MapPin className="w-3 h-3" /> Location captured successfully</p>}
                                     {locationError && <p className="text-xs text-red-600">{locationError}</p>}
                                     {!location && !locationError && (
                                         <p className="text-xs text-muted-foreground">

@@ -208,9 +208,9 @@ function SearchPageContent() {
                                 onChange={(e) => setSortBy(e.target.value as any)}
                                 className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
                             >
-                                <option value="newest">🕐 Newest</option>
-                                <option value="distance">📍 Nearest</option>
-                                <option value="popular">📈 Popular</option>
+                                <option value="newest">Newest</option>
+                                <option value="distance">Nearest</option>
+                                <option value="popular">Popular</option>
                             </select>
                         </div>
 

@@ -1,12 +1,21 @@
-import { storage } from "./firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-
 export const uploadImage = async (file: File | Blob, path: string): Promise<string> => {
     try {
-        const storageRef = ref(storage, path);
-        const snapshot = await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        return downloadURL;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('path', path);
+
+        const response = await fetch('/api/upload/s3', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to upload to S3');
+        }
+
+        const data = await response.json();
+        return data.url;
     } catch (error) {
         console.error("Error uploading image:", error);
         throw error;

@@ -218,8 +218,8 @@ const RequestCard = ({
                         </Badge>
 
                         {request.paymentStatus === 'paid' && (
-                            <Badge variant="outline" className="text-green-600 border-green-300 text-xs">
-                                ✓ Paid
+                            <Badge variant="outline" className="text-green-600 border-green-300 text-xs flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Paid
                             </Badge>
                         )}
 

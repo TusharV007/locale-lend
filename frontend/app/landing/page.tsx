@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
   MapPin, Users, Shield, ArrowRight, Star, CheckCircle2,
   Package, Wrench, Laptop, ChefHat, Tent, BookOpen, Bike,
-  Zap, Heart, RefreshCw, ChevronDown, Quote, Menu, X
+  Zap, Heart, RefreshCw, ChevronDown, Quote, Menu, X, Trophy, MessageCircle
 } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -332,26 +332,28 @@ export default function LandingPage() {
               </div>
 
               {/* Floating item cards */}
-              {[
-                { style: { top: '4%', left: '8%' }, label: '🔧 Power Drill', sub: '0.3km away', delay: 0 },
-                { style: { top: '12%', right: '4%' }, label: '📷 Camera', sub: '0.8km away', delay: 0.15 },
-                { style: { bottom: '22%', left: '0%' }, label: '⛺ Tent', sub: '1.2km away', delay: 0.3 },
-                { style: { bottom: '8%', right: '8%' }, label: '🎂 Stand Mixer', sub: '0.5km away', delay: 0.45 },
-                { style: { top: '45%', right: '-4%' }, label: '📚 Books', sub: '0.1km away', delay: 0.6 },
-              ].map((item, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.7 + item.delay, duration: 0.5, ease: 'easeOut' }}
-                  style={{ position: 'absolute', ...item.style }}
-                  className="animate-float bg-card border border-border rounded-xl px-4 py-2.5 shadow-card"
-                  set={{ animationDelay: `${item.delay}s` } as any}
-                >
-                  <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                  <p className="text-xs text-primary font-medium">{item.sub}</p>
-                </motion.div>
-              ))}
+               {[
+                 { style: { top: '4%', left: '8%' }, icon: Wrench, label: 'Power Drill', sub: '0.3km away', delay: 0 },
+                 { style: { top: '12%', right: '4%' }, icon: Laptop, label: 'Camera', sub: '0.8km away', delay: 0.15 },
+                 { style: { bottom: '22%', left: '0%' }, icon: Tent, label: 'Tent', sub: '1.2km away', delay: 0.3 },
+                 { style: { bottom: '8%', right: '8%' }, icon: ChefHat, label: 'Stand Mixer', sub: '0.5km away', delay: 0.45 },
+                 { style: { top: '45%', right: '-4%' }, icon: BookOpen, label: 'Books', sub: '0.1km away', delay: 0.6 },
+               ].map((item, i) => (
+                 <motion.div
+                   key={i}
+                   initial={{ opacity: 0, scale: 0.8 }}
+                   animate={{ opacity: 1, scale: 1 }}
+                   transition={{ delay: 0.7 + item.delay, duration: 0.5, ease: 'easeOut' }}
+                   style={{ position: 'absolute', ...item.style }}
+                   className="animate-float bg-card border border-border rounded-xl px-4 py-2.5 shadow-card flex items-center gap-2"
+                 >
+                   <item.icon className="w-4 h-4 text-primary" />
+                   <div>
+                     <p className="text-sm font-semibold text-foreground leading-none">{item.label}</p>
+                     <p className="text-[10px] text-primary font-medium mt-0.5">{item.sub}</p>
+                   </div>
+                 </motion.div>
+               ))}
             </div>
           </motion.div>
         </div>
@@ -439,7 +441,9 @@ export default function LandingPage() {
                 {/* Mock item card */}
                 <div className="bg-background border border-border rounded-xl p-4 shadow-soft">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-lg">🔧</div>
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-lg">
+                      <Wrench className="w-5 h-5 text-primary" />
+                    </div>
                     <div>
                       <p className="font-semibold text-foreground text-sm">DeWalt Power Drill</p>
                       <p className="text-xs text-muted-foreground">0.4km · Tools</p>
@@ -460,12 +464,16 @@ export default function LandingPage() {
 
                 {/* Mock message */}
                 <div className="bg-background border border-border rounded-xl p-4 shadow-soft space-y-2">
-                  <p className="text-xs font-semibold text-foreground">💬 Request sent!</p>
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1">
+                    <MessageCircle className="w-3 h-3 text-primary" /> Request sent!
+                  </p>
                   <div className="bg-primary/10 rounded-lg px-3 py-2">
                     <p className="text-xs text-primary font-medium">"Hi Rahul! Can I borrow the drill this Saturday?"</p>
                   </div>
                   <div className="bg-green-500/10 rounded-lg px-3 py-2 ml-4">
-                    <p className="text-xs text-green-700 font-medium">✓ Accepted! See you Saturday at 10am.</p>
+                    <p className="text-xs text-green-700 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Accepted! See you Saturday at 10am.
+                    </p>
                   </div>
                 </div>
 
@@ -478,7 +486,9 @@ export default function LandingPage() {
                     <p className="text-sm font-semibold text-foreground">Trust Score: 4.9</p>
                     <p className="text-xs text-muted-foreground">Top 5% of neighbors in your area</p>
                   </div>
-                  <div className="ml-auto text-2xl">🏆</div>
+                  <div className="ml-auto">
+                    <Trophy className="w-6 h-6 text-yellow-500" />
+                  </div>
                 </div>
               </div>
             </motion.div>

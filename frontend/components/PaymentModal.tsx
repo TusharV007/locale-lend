@@ -231,7 +231,9 @@ export function PaymentModal({
                                         </div>
                                     </div>
                                     {amount === 0 && (
-                                        <p className="text-xs text-green-600 font-medium">✓ This item is shared for free!</p>
+                                        <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                            <CheckCircle2 className="w-3.5 h-3.5" /> This item is shared for free!
+                                        </p>
                                     )}
                                 </div>
 

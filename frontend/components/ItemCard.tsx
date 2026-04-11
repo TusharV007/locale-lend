@@ -154,9 +154,9 @@ export function ItemCard({
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <option value="available">🟢 Available</option>
-                    <option value="lended">🔵 Lended Out</option>
-                    <option value="unavailable">🔴 Unavailable</option>
+                    <option value="available">Available</option>
+                    <option value="lended">Lended Out</option>
+                    <option value="unavailable">Unavailable</option>
                   </select>
                 </div>
               ) : (

@@ -230,9 +230,15 @@ export function NeighborhoodMap({
           </div>
           <h3 style="font-weight: 600; color: #1a1a1a; margin: 0 0 4px 0; font-size: 14px;">${item.title}</h3>
           <div style="display: flex; gap: 8px; font-size: 12px; color: #666; margin-bottom: 8px;">
-            <span>📍 ${item.distance}m</span>
+            <span style="display: flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              ${item.distance}m
+            </span>
             <span>•</span>
-            <span>⭐ ${item.owner.trustScore.toFixed(1)}</span>
+            <span style="display: flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              ${item.owner.trustScore.toFixed(1)}
+            </span>
           </div>
           ${item.availabilityStatus === 'Available' ? `
             <button 
@@ -291,7 +297,7 @@ export function NeighborhoodMap({
 
       {/* Map overlay legend */}
       <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm rounded-lg p-3 shadow-card z-[1000]">
-        <p className="text-xs font-medium text-muted-foreground mb-2">Items nearby</p>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Items within 5km</p>
         <p className="text-2xl font-bold text-card-foreground">{items.length}</p>
       </div>
 

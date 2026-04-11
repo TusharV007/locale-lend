@@ -27,6 +27,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import LandingPage from '@/app/landing/page';
 
+const RADIUS_LIMIT_METERS = 5000; // 5km
+
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -130,15 +132,34 @@ export default function Home() {
     setCurrentUser(mockUsers[0]);
 
     // Fetch map items (all items for map view)
-    const fetchMapItems = async () => {
+    const fetchMapItemsData = async () => {
       try {
         const result = await fetchItems(100);
-        setMapItems(result.items);
+        const location = userLocation || DEFAULT_USER_LOCATION;
+        
+        const filteredMapItems = result.items.map(item => {
+          if (!location || !item.location) return { ...item, distance: 0 };
+          
+          const itemLocation = item.location as any;
+          const targetCoords = itemLocation.coordinates || (itemLocation.lng !== undefined && itemLocation.lat !== undefined ? [itemLocation.lng, itemLocation.lat] : null);
+          if (!targetCoords || targetCoords.length < 2) return { ...item, distance: 0 };
+
+          const R = 6371e3;
+          const lat1 = location.coordinates[1] * Math.PI / 180;
+          const lat2 = targetCoords[1] * Math.PI / 180;
+          const dLat = (targetCoords[1] - location.coordinates[1]) * Math.PI / 180;
+          const dLon = (targetCoords[0] - location.coordinates[0]) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+          const dist = Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+          return { ...item, distance: dist };
+        }).filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS);
+
+        setMapItems(filteredMapItems);
       } catch (error) {
         console.error('Failed to fetch map items:', error);
       }
     };
-    fetchMapItems();
+    fetchMapItemsData();
 
     // Request Location
     requestUserLocation();
@@ -191,6 +212,7 @@ export default function Home() {
   const sortedItems = [...nearbyItems]
     .filter(item => item.owner.id !== user?.uid)
     .filter(item => item.status === 'available' || !item.status)
+    .filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS)
     .sort((a, b) => {
     // Priority 1: Available items first
     const statusA = a.status || 'available';
@@ -302,9 +324,9 @@ export default function Home() {
                     onChange={(e) => setSortBy(e.target.value as any)}
                     className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
                   >
-                    <option value="distance">📍 Nearest</option>
-                    <option value="newest">🕐 Newest</option>
-                    <option value="popular">📈 Popular</option>
+                    <option value="distance">Nearest</option>
+                    <option value="newest">Newest</option>
+                    <option value="popular">Popular</option>
                   </select>
                 </div>
 
