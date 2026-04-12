@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper: is the user logged in?
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: is the current user the owner of the document?
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Helper: is the current user an admin?
+    // Note: This requires the user doc to exist with a 'role' field
+    function isAdmin() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      
+      // Allow users to update their own docs, OR admins to update any doc,
+      // OR allow cross-user updates for points and scores.
+      allow update: if isOwner(userId) || isAdmin() || (isSignedIn() && 
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['referralPoints', 'referralCount', 'totalReviews', 'trustScore', 'itemsLentCount', 'itemsBorrowedCount']));
+      
+      allow delete: if isAdmin();
+    }
+
+    // Items Collection
+    match /items/{itemId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isOwner(resource.data.owner.id) || isAdmin());
+      allow delete: if isSignedIn() && (isOwner(resource.data.owner.id) || isAdmin());
+    }
+
+    // Requests Collection
+    match /requests/{requestId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.borrowerId || 
+        request.auth.uid == resource.data.lenderId || 
+        isAdmin()
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        request.auth.uid == resource.data.borrowerId || 
+        request.auth.uid == resource.data.lenderId || 
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+      
+      // Messages sub-collection
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn() && (
+          get(/databases/$(database)/documents/requests/$(requestId)).data.borrowerId == request.auth.uid ||
+          get(/databases/$(database)/documents/requests/$(requestId)).data.lenderId == request.auth.uid ||
+          isAdmin()
+        );
+      }
+    }
+
+    // Reviews Collection
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Notifications Collection
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    // Referral Points History
+    match /referral_points_history/{id} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Payments
+    match /payments/{id} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.payerId || 
+        request.auth.uid == resource.data.receiverId || 
+        isAdmin()
+      );
+      allow write: if isSignedIn();
+    }
+  }
+}
+

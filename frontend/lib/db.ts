@@ -18,6 +18,7 @@ import {
     deleteDoc,
     startAfter,
     writeBatch,
+    setDoc,
 } from "firebase/firestore";
 import type { Item, GeoJSONPoint, Payment, Request, User, Review } from "@/types";
 import { calculateTrustScore } from "./trustEngine";
@@ -341,6 +342,12 @@ export const updateRequestStatus = async (requestId: string, status: 'accepted' 
                     requestId,
                     itemTitle: requestData.itemTitle,
                 });
+            } else if (status === 'completed') {
+                // Reward beide users for successful transaction
+                // Reward Lender
+                await updateReferralPoints(requestData.lenderId, 20, "Transaction completed (Lender)");
+                // Reward Borrower
+                await updateReferralPoints(requestData.borrowerId, 10, "Transaction completed (Borrower)");
             }
         }
     } catch (error) {
@@ -729,9 +736,20 @@ export const createReview = async (review: Omit<Review, "id" | "createdAt">) => 
                     totalReviews: newTotalReviews,
                     trustScore: trustResult.score,
                 });
-            }
 
-            // Notify reviewee
+                // Reward reviewee/reviewer
+                await updateReferralPoints(review.reviewerId, 5, `Left a review for ${review.itemTitle}`);
+            }
+        } catch (error: any) {
+            if (error.code === 'permission-denied') {
+                console.warn("Permission denied while updating user stats. Ensure Firestore rules allow cross-user updates to trustScore/totalReviews.");
+            } else {
+                console.error("Error updating user stats after review:", error);
+            }
+        }
+
+        // Notify reviewee
+        try {
             await createNotification({
                 userId: review.revieweeId,
                 type: 'request_accepted', // Using an existing type for now
@@ -834,6 +852,279 @@ export const updateUserProfile = async (userId: string, updates: Partial<User>) 
         throw error;
     }
 };
+
+// ============================================
+// ADMINISTRATIVE FUNCTIONS
+// ============================================
+
+/**
+ * Fetch all users for admin management
+ */
+export const fetchAllUsers = async (): Promise<User[]> => {
+    try {
+        const q = query(collection(db, USERS_COLLECTION), orderBy("memberSince", "desc"));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+            memberSince: parseDate(d.data().memberSince)
+        } as User));
+    } catch (error) {
+        console.error("Error fetching all users:", error);
+        // Fallback if index missing
+        const snapshot = await getDocs(collection(db, USERS_COLLECTION));
+        return snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+            memberSince: parseDate(d.data().memberSince)
+        } as User));
+    }
+};
+
+/**
+ * Fetch all items across all users for admin management
+ */
+export const fetchAllItemsAdmin = async (): Promise<Item[]> => {
+    try {
+        const q = query(collection(db, ITEMS_COLLECTION), orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+            createdAt: parseDate(d.data().createdAt)
+        } as Item));
+    } catch (error) {
+        console.error("Error fetching admin items:", error);
+        const snapshot = await getDocs(collection(db, ITEMS_COLLECTION));
+        return snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+            createdAt: parseDate(d.data().createdAt)
+        } as Item));
+    }
+};
+
+/**
+ * Admin: Update any user profile with Cascade Synchronization
+ */
+export const adminUpdateUser = async (userId: string, updates: Partial<User>) => {
+    try {
+        const userRef = doc(db, USERS_COLLECTION, userId);
+        const userSnap = await getDoc(userRef);
+        
+        // Preserve existing memberSince to prevent account age resets
+        let memberSince = updates.memberSince;
+        if (!memberSince && userSnap.exists()) {
+            memberSince = userSnap.data().memberSince;
+        }
+
+        const batch = writeBatch(db);
+
+        // 1. Update User Profile
+        batch.set(userRef, {
+            ...updates,
+            id: userId,
+            memberSince: memberSince || Timestamp.now(),
+        }, { merge: true });
+
+        // 2. Cascade Synchronization: Update owner snapshot in all items
+        const consistencyFields = ['name', 'verified', 'avatar', 'trustScore'];
+        const changedFields = Object.keys(updates).filter(key => consistencyFields.includes(key));
+
+        if (changedFields.length > 0) {
+            const itemsQuery = query(collection(db, ITEMS_COLLECTION), where("ownerId", "==", userId));
+            const itemsSnapshot = await getDocs(itemsQuery);
+            
+            const syncPayload: any = {};
+            changedFields.forEach(field => {
+                syncPayload[`owner.${field}`] = (updates as any)[field];
+            });
+
+            itemsSnapshot.docs.forEach(itemDoc => {
+                batch.update(itemDoc.ref, syncPayload);
+            });
+        }
+
+        await batch.commit();
+        console.log(`Successfully updated user ${userId} and synced ${changedFields.length} fields across items.`);
+    } catch (error) {
+        console.error("Error in adminUpdateUser:", error);
+        throw error;
+    }
+};
+
+/**
+ * Admin: Delete any item (cascade delete)
+ */
+export const adminDeleteItem = async (itemId: string) => {
+    try {
+        console.log(`Admin starting cascade delete for item: ${itemId}`);
+        const requestsQuery = query(collection(db, REQUESTS_COLLECTION), where("itemId", "==", itemId));
+        const requestsSnapshot = await getDocs(requestsQuery);
+
+        const deletePromises: Promise<void>[] = [];
+        for (const requestDoc of requestsSnapshot.docs) {
+            const messagesRef = collection(db, REQUESTS_COLLECTION, requestDoc.id, MESSAGES_SUBCOLLECTION);
+            const messagesSnapshot = await getDocs(messagesRef);
+            messagesSnapshot.docs.forEach(msgDoc => { deletePromises.push(deleteDoc(msgDoc.ref)); });
+            deletePromises.push(deleteDoc(requestDoc.ref));
+        }
+        await Promise.all(deletePromises);
+
+        const itemRef = doc(db, ITEMS_COLLECTION, itemId);
+        await deleteDoc(itemRef);
+        console.log(`Admin successfully cascade deleted item: ${itemId}`);
+    } catch (error) {
+        console.error("Admin error in cascade delete:", error);
+        throw error;
+    }
+};
+
+/**
+ * Admin: Delete a user and all their associated items
+ */
+export const adminDeleteUser = async (userId: string) => {
+    try {
+        console.log(`Admin starting cascade delete for user: ${userId}`);
+        
+        // 1. Find all items owned by this user
+        const itemsQuery = query(collection(db, ITEMS_COLLECTION), where("ownerId", "==", userId));
+        const itemsSnapshot = await getDocs(itemsQuery);
+        
+        // 2. Delete each item (this will trigger its own sub-collection cleanup in adminDeleteItem logic)
+        const itemDeletes = itemsSnapshot.docs.map(itemDoc => adminDeleteItem(itemDoc.id));
+        await Promise.all(itemDeletes);
+        
+        // 3. Delete the user profile itself
+        const userRef = doc(db, USERS_COLLECTION, userId);
+        await deleteDoc(userRef);
+        
+        console.log(`Admin successfully deleted user ${userId} and all associated items.`);
+    } catch (error) {
+        console.error("Admin error in delete user:", error);
+        throw error;
+    }
+};
+
+// ============================================
+// REFERRAL & BONUS FUNCTIONS
+// ============================================
+
+const REFERRAL_POINTS_COLLECTION = "referral_points_history";
+
+/**
+ * Generate a unique referral code based on name and random suffix
+ */
+export const generateUniqueReferralCode = async (name: string): Promise<string> => {
+    const base = name.split(' ')[0].toUpperCase().replace(/[^A-Z0-9]/g, '');
+    let code = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    // Check if exists
+    const q = query(collection(db, USERS_COLLECTION), where("referralCode", "==", code));
+    const snap = await getDocs(q);
+    
+    if (!snap.empty) {
+        return generateUniqueReferralCode(name); // Recurse if collision
+    }
+    return code;
+};
+
+/**
+ * Update user Referral Points and log history
+ */
+export const updateReferralPoints = async (userId: string, amount: number, reason: string) => {
+    try {
+        const userRef = doc(db, USERS_COLLECTION, userId);
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists()) {
+            const currentPoints = userSnap.data().referralPoints || 0;
+            await updateDoc(userRef, {
+                referralPoints: currentPoints + amount
+            });
+            
+            // Log history
+            await addDoc(collection(db, REFERRAL_POINTS_COLLECTION), {
+                userId,
+                amount,
+                reason,
+                timestamp: Timestamp.now()
+            });
+        }
+    } catch (error: any) {
+        if (error.code === 'permission-denied') {
+            console.warn(`Permission denied updating points for ${userId}. Help: Check your firestore.rules for referral_points_history and user updates.`);
+        } else {
+            console.error("Error updating points:", error);
+        }
+    }
+};
+
+/**
+ * Process referral: Reward both users
+ */
+export const processReferral = async (newUserId: string, referralCode: string) => {
+    try {
+        const q = query(collection(db, USERS_COLLECTION), where("referralCode", "==", referralCode));
+        const snap = await getDocs(q);
+        
+        if (!snap.empty) {
+            const referrerDoc = snap.docs[0];
+            const referrerId = referrerDoc.id;
+            
+            // 1. Mark new user as referred
+            const newUserRef = doc(db, USERS_COLLECTION, newUserId);
+            await updateDoc(newUserRef, {
+                referredBy: referralCode,
+                referralPoints: 50 // New user bonus
+            });
+            
+            // 2. Reward referrer
+            const currentReferralCount = referrerDoc.data().referralCount || 0;
+            const referrerRef = doc(db, USERS_COLLECTION, referrerId);
+            await updateDoc(referrerRef, {
+                referralCount: currentReferralCount + 1,
+            });
+            
+            await updateReferralPoints(referrerId, 50, "Referral sign-up bonus");
+            
+            console.log(`Successfully processed referral from ${referralCode} for user ${newUserId}`);
+            return true;
+        }
+        return false;
+    } catch (error: any) {
+        if (error.code === 'permission-denied') {
+            console.error("CRITICAL: Referral processing failed due to missing Firestore permissions. Please apply the rules from firestore.rules.");
+        } else {
+            console.error("Error processing referral:", error);
+        }
+        return false;
+    }
+};
+
+/**
+ * Fetch Referral Points history for a user
+ */
+export const fetchReferralPointsHistory = async (userId: string) => {
+    try {
+        const q = query(
+            collection(db, REFERRAL_POINTS_COLLECTION),
+            where("userId", "==", userId),
+            orderBy("timestamp", "desc"),
+            limit(10)
+        );
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+            timestamp: parseDate(d.data().timestamp)
+        }));
+    } catch (error) {
+        console.error("Error fetching points history:", error);
+        return [];
+    }
+};
+
 
 
 

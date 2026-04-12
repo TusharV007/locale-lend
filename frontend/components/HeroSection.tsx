@@ -123,10 +123,10 @@ export function HeroSection({ onExploreClick }: HeroSectionProps) {
 
               {/* Floating item cards */}
               {[
-                { top: '5%', left: '10%', label: 'Power Drill', delay: 0 },
+                { top: '5%', left: '10%', label: 'Circular Saw', delay: 0 },
                 { top: '15%', right: '5%', label: 'Camera', delay: 0.1 },
-                { bottom: '20%', left: '0%', label: 'Tent', delay: 0.2 },
-                { bottom: '10%', right: '10%', label: 'Mixer', delay: 0.3 },
+                { bottom: '20%', left: '0%', label: 'Lawn Mower', delay: 0.2 },
+                { bottom: '10%', right: '10%', label: 'Concrete Mixer', delay: 0.3 },
               ].map((item, index) => (
                 <motion.div
                   key={index}

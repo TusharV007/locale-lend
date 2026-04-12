@@ -11,25 +11,32 @@ import { toast } from 'sonner';
 import { addItem, updateItem, fetchUserProfile } from '@/lib/db';
 import { compressImage } from '@/lib/utils';
 import { uploadImage } from '@/lib/storage';
-import type { GeoJSONPoint, Item, ItemCategory } from '@/types';
+import type { GeoJSONPoint, Item, ItemCategory, User as UserType } from '@/types';
+import { fetchAllUsers } from '@/lib/db';
 
 interface AddItemModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
     editItem?: Item | null; // When provided, switches to edit mode
+    adminMode?: boolean;
 }
 
-const CATEGORIES: ItemCategory[] = ['Tools', 'Electronics', 'Kitchen', 'Outdoor', 'Books', 'Sports'];
+const CATEGORIES: ItemCategory[] = ['Tools', 'Electronics', 'Kitchen', 'Outdoor', 'Books', 'Sports', 'Construction', 'Gardening', 'Party', 'Toys', 'Clothing', 'Musical', 'Health', 'Home'];
 
-export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: AddItemModalProps) {
-    const { user } = useAuth();
+export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, adminMode = false }: AddItemModalProps) {
+    const { user: authUser } = useAuth();
     const isEditMode = !!editItem;
     const [mounted, setMounted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCapturingLocation, setIsCapturingLocation] = useState(false);
     const [location, setLocation] = useState<GeoJSONPoint | null>(null);
     const [locationError, setLocationError] = useState<string | null>(null);
+    const [allUsers, setAllUsers] = useState<UserType[]>([]);
+    const [selectedOwnerId, setSelectedOwnerId] = useState<string>('');
+    const [isFetchingUsers, setIsFetchingUsers] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<Blob | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string>('');
     const [formData, setFormData] = useState<{
         title: string;
         description: string;
@@ -47,7 +54,26 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
     // Pre-fill form when editing
     useEffect(() => {
         setMounted(true);
-    }, []);
+        if (adminMode && isOpen) {
+            loadAllUsers();
+        }
+    }, [adminMode, isOpen]);
+
+    const loadAllUsers = async () => {
+        try {
+            setIsFetchingUsers(true);
+            const users = await fetchAllUsers();
+            setAllUsers(users);
+            if (users.length > 0 && !editItem) {
+                setSelectedOwnerId(users[0].id);
+            }
+        } catch (err) {
+            console.error("Failed to load users:", err);
+            toast.error("Failed to load neighbor list");
+        } finally {
+            setIsFetchingUsers(false);
+        }
+    };
 
     // Pre-fill form when editing
     useEffect(() => {
@@ -62,12 +88,16 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
             if (editItem.location) {
                 setLocation(editItem.location);
             }
+            if (adminMode && editItem.ownerId) {
+                setSelectedOwnerId(editItem.ownerId);
+            }
         } else {
             setFormData({ title: '', description: '', category: 'Tools', image: '', rentalPricePerDay: 1 });
             setLocation(null);
             setLocationError(null);
+            if (!adminMode) setSelectedOwnerId(authUser?.uid || '');
         }
-    }, [editItem, isOpen]);
+    }, [editItem, isOpen, adminMode, authUser]);
 
     const captureLocation = () => {
         if (typeof window === 'undefined' || !navigator?.geolocation) {
@@ -99,18 +129,23 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
         try {
             const toastId = toast.loading('Processing image...');
             const compressedBase64 = await compressImage(file);
-            toast.loading('Uploading...', { id: toastId });
+            
+            // Create a local blob for storage and a preview URL
             const res = await fetch(compressedBase64);
             const blob = await res.blob();
-            const filename = `items/${user?.uid || 'anonymous'}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
-            const downloadURL = await uploadImage(blob, filename);
-            setFormData(prev => ({ ...prev, image: downloadURL }));
-            toast.success('Image uploaded!', { id: toastId });
+            
+            setSelectedFile(blob);
+            setPreviewUrl(compressedBase64); // Use base64 as immediate preview
+            
+            // Note: We don't update formData.image yet to avoid confusion with S3 URLs
+            toast.success('Image ready!', { id: toastId });
         } catch (error) {
-            toast.error('Failed to upload image');
+            console.error("Compression error:", error);
+            toast.error('Failed to process image');
         }
     };
 
@@ -118,14 +153,21 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            if (!formData.title || !formData.description) {
-                throw new Error('Please fill all required fields');
-            }
-            if (!isEditMode && !formData.image) {
-                throw new Error('Please upload an item image');
-            }
-            if (formData.rentalPricePerDay <= 0) {
-                throw new Error('Rental price must be at least ₹1 per day');
+            const targetUId = adminMode ? selectedOwnerId : (authUser?.uid || 'anonymous');
+            let finalImageUrl = formData.image;
+
+            // 1. Handle deferred S3 Upload if a new file was selected
+            if (selectedFile) {
+                const uploadToastId = toast.loading('Uploading image to cloud...');
+                try {
+                    const filename = `items/${targetUId}/${Date.now()}-item-image.jpg`;
+                    finalImageUrl = await uploadImage(selectedFile, filename);
+                    toast.success('Upload complete!', { id: uploadToastId });
+                } catch (err) {
+                    toast.error('Cloud upload failed. Please try again.', { id: uploadToastId });
+                    setIsSubmitting(false);
+                    return;
+                }
             }
 
             const itemLocation: GeoJSONPoint = location || { type: 'Point' as const, coordinates: [80.4365, 16.3067] };
@@ -138,33 +180,41 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
                     category: formData.category,
                     rentalPricePerDay: formData.rentalPricePerDay,
                 };
-                if (formData.image && formData.image !== editItem.images?.[0]) {
-                    updates.images = [formData.image];
+                
+                // Only update images if we have a new S3 URL
+                if (finalImageUrl && finalImageUrl !== editItem.images?.[0]) {
+                    updates.images = [finalImageUrl];
                 }
+                
                 if (location) {
                     updates.location = itemLocation;
                 }
                 await updateItem(editItem.id, updates);
                 toast.success('Item updated successfully!');
             } else {
-                // Fetch latest user profile gracefully to avoid permission errors or crashes
+                // Fetch latest user profile gracefully 
                 let profile = null;
+                
                 try {
-                    if (user?.uid) {
-                        profile = await fetchUserProfile(user.uid);
+                    if (targetUId) {
+                        profile = await fetchUserProfile(targetUId);
                     }
                 } catch (err) {
                     console.warn('Could not fetch user profile, using defaults:', err);
                 }
                 
+                if (adminMode && !profile) {
+                    profile = allUsers.find(u => u.id === targetUId) || null;
+                }
+
                 const ownerData: any = {
-                    id: user?.uid || 'anonymous',
-                    name: user?.displayName || 'Anonymous',
-                    email: user?.email || '',
-                    avatar: profile?.avatar || user?.photoURL || null,
+                    id: targetUId,
+                    name: profile?.name || (targetUId === authUser?.uid ? authUser?.displayName : 'Neighbor'),
+                    email: profile?.email || (targetUId === authUser?.uid ? authUser?.email : ''),
+                    avatar: profile?.avatar || (targetUId === authUser?.uid ? authUser?.photoURL : null),
                     location: itemLocation,
-                    address: profile?.address || 'Local Neighborhood',
-                    trustScore: profile?.trustScore || 0,
+                    address: profile?.address || 'Community Hub',
+                    trustScore: profile?.trustScore || 80,
                     totalReviews: profile?.totalReviews || 0,
                     itemsLentCount: profile?.itemsLentCount || 0,
                     itemsBorrowedCount: profile?.itemsBorrowedCount || 0,
@@ -174,13 +224,15 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
 
                 // Create new item
                 const newItem = {
-                    ...formData,
-                    ownerId: user?.uid || 'anonymous',
+                    title: formData.title,
+                    description: formData.description,
+                    category: formData.category,
+                    ownerId: targetUId,
                     owner: ownerData,
                     availabilityStatus: 'Available' as const,
                     location: itemLocation,
                     distance: 0,
-                    images: [formData.image],
+                    images: [finalImageUrl],
                     borrowCount: 0,
                     rentalPricePerDay: formData.rentalPricePerDay,
                 };
@@ -228,14 +280,43 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null }: Ad
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6">
-                            <form id="add-item-form" onSubmit={handleSubmit} className="space-y-4">
+                        <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                            <form id="add-item-form" onSubmit={handleSubmit} className="space-y-6">
+                                {/* Admin: Owner Selection */}
+                                {adminMode && !isEditMode && (
+                                    <div className="space-y-2 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
+                                        <Label htmlFor="owner-select" className="text-blue-500 font-bold text-xs uppercase tracking-widest">Assign to Neighbor</Label>
+                                        <select
+                                            id="owner-select"
+                                            className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#1a1a1a] text-sm text-white focus:ring-2 focus:ring-blue-500"
+                                            value={selectedOwnerId}
+                                            onChange={e => setSelectedOwnerId(e.target.value)}
+                                            disabled={isFetchingUsers}
+                                        >
+                                            {isFetchingUsers ? (
+                                                <option>Loading neighbors...</option>
+                                            ) : (
+                                                allUsers.map(u => (
+                                                    <option key={u.id} value={u.id}>
+                                                        {u.name} ({u.email})
+                                                    </option>
+                                                ))
+                                            )}
+                                        </select>
+                                        <p className="text-[10px] text-gray-500">Pick the community member who owns this item.</p>
+                                    </div>
+                                )}
+
                                 {/* Image */}
                                 <div className="space-y-2">
                                     <Label htmlFor="image">Item Image{!isEditMode && ' *'}</Label>
                                     <div className="flex items-center gap-4">
-                                        {formData.image && (
-                                            <img src={formData.image} alt="Preview" className="w-20 h-20 object-cover rounded-lg border" />
+                                        {(previewUrl || formData.image) && (
+                                            <img 
+                                                src={previewUrl || formData.image} 
+                                                alt="Preview" 
+                                                className="w-20 h-20 object-cover rounded-lg border" 
+                                            />
                                         )}
                                         <div className="relative">
                                             <input type="file" id="image" accept="image/*" onChange={handleImageUpload} className="hidden" />

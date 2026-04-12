@@ -182,10 +182,12 @@ function SearchPageContent() {
                 </motion.div>
 
                 {/* Category Filter */}
-                <CategoryFilter
-                    selectedCategory={selectedCategory}
-                    onCategoryChange={handleCategoryChange}
-                />
+                <div className="mb-8">
+                    <CategoryFilter
+                        selectedCategory={selectedCategory}
+                        onCategoryChange={handleCategoryChange}
+                    />
+                </div>
 
                 {/* Results Controls */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border rounded-xl p-4 mb-6">

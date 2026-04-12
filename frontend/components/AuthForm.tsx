@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Lock, User, Eye, EyeOff, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatePresence } from 'framer-motion';
 
@@ -16,7 +16,7 @@ import { AnimatePresence } from 'framer-motion';
 export const AuthForm = () => {
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -28,12 +28,9 @@ export const AuthForm = () => {
     displayName: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    referralCode: ''
   });
-
-  // OTP State
-  const [showOTPVerification, setShowOTPVerification] = useState(false);
-  const [otpValue, setOtpValue] = useState('');
 
   // Handlers
   const handleSignIn = async (e: React.FormEvent) => {
@@ -49,7 +46,7 @@ export const AuthForm = () => {
       });
       router.push('/');
     } catch (error) {
-      // Context handles basic errors, but we can add specific UI feedback here if needed
+      // Context handles error toast usually
     } finally {
       setIsLoading(false);
     }
@@ -79,14 +76,14 @@ export const AuthForm = () => {
 
     setIsLoading(true);
     try {
-      await signUp(signUpData.email, signUpData.password, signUpData.displayName);
+      await signUp(signUpData.email, signUpData.password, signUpData.displayName, signUpData.referralCode);
       toast({
         title: "Account Created",
         description: "Welcome to Local Share!",
       });
       router.push('/');
     } catch (error) {
-      // Context handles error toast usually, but we can ensure here
+      // Context handles error toast
     } finally {
       setIsLoading(false);
     }
@@ -101,12 +98,9 @@ export const AuthForm = () => {
         className="w-full"
       >
         <Card className="bg-card border shadow-card overflow-hidden">
-        <CardHeader className="pb-2">
+          <CardHeader className="pb-2">
             <CardDescription className="text-center text-muted-foreground">
-              {showOTPVerification
-                ? "Verify your email to continue"
-                : "Sign in to your account"
-              }
+              Sign in to your account or create a new one
             </CardDescription>
           </CardHeader>
 
@@ -219,13 +213,6 @@ export const AuthForm = () => {
                             required
                             minLength={6}
                           />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                          >
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
                         </div>
                       </div>
 
@@ -236,11 +223,27 @@ export const AuthForm = () => {
                           <Input
                             id="signup-confirm-password"
                             type={showPassword ? 'text' : 'password'}
-                            placeholder="Confirm password"
+                            placeholder="Repeat password"
                             value={signUpData.confirmPassword}
                             onChange={(e) => setSignUpData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                             className="pl-10 pr-10 bg-white/50 dark:bg-black/20"
                             required
+                            minLength={6}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="signup-referral">Referral Code (Optional)</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground opacity-50" />
+                          <Input
+                            id="signup-referral"
+                            type="text"
+                            placeholder="NAME1234"
+                            value={signUpData.referralCode}
+                            onChange={(e) => setSignUpData(prev => ({ ...prev, referralCode: e.target.value }))}
+                            className="pl-10 bg-white/50 dark:bg-black/20"
                           />
                         </div>
                       </div>
@@ -260,7 +263,6 @@ export const AuthForm = () => {
           </CardContent>
         </Card>
       </motion.div>
-      {/* Hidden reCAPTCHA container */}
       <div id="recaptcha-container"></div>
     </div>
   );

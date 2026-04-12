@@ -72,6 +72,14 @@
     --category-outdoor: 145 60% 40%;
     --category-books: 270 50% 55%;
     --category-sports: 15 85% 55%;
+    --category-construction: 25 80% 50%;
+    --category-gardening: 120 50% 45%;
+    --category-party: 300 70% 60%;
+    --category-toys: 45 90% 55%;
+    --category-clothing: 180 60% 50%;
+    --category-musical: 0 80% 50%;
+    --category-health: 200 80% 45%;
+    --category-home: 30 40% 40%;
   }
 
   .dark {
@@ -156,6 +164,14 @@
   --color-category-outdoor: hsl(var(--category-outdoor));
   --color-category-books: hsl(var(--category-books));
   --color-category-sports: hsl(var(--category-sports));
+  --color-category-construction: hsl(var(--category-construction));
+  --color-category-gardening: hsl(var(--category-gardening));
+  --color-category-party: hsl(var(--category-party));
+  --color-category-toys: hsl(var(--category-toys));
+  --color-category-clothing: hsl(var(--category-clothing));
+  --color-category-musical: hsl(var(--category-musical));
+  --color-category-health: hsl(var(--category-health));
+  --color-category-home: hsl(var(--category-home));
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

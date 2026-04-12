@@ -1,7 +1,7 @@
 // Local Share Type Definitions
 // These types mirror what would be Mongoose schemas in a full-stack app
 
-export type ItemCategory = 'Tools' | 'Electronics' | 'Kitchen' | 'Outdoor' | 'Books' | 'Sports';
+export type ItemCategory = 'Tools' | 'Electronics' | 'Kitchen' | 'Outdoor' | 'Books' | 'Sports' | 'Construction' | 'Gardening' | 'Party' | 'Toys' | 'Clothing' | 'Musical' | 'Health' | 'Home';
 
 export type AvailabilityStatus = 'Available' | 'Borrowed' | 'Reserved' | 'Unavailable';
 
@@ -40,6 +40,12 @@ export interface User {
   memberSince: Date;
   verified: boolean;
   bankDetails?: BankDetails;
+  role?: 'admin' | 'user';
+  isBlocked?: boolean;
+  referralCode?: string;
+  referredBy?: string;
+  referralPoints?: number;
+  referralCount?: number;
 }
 
 // Item schema - represents a shareable resource

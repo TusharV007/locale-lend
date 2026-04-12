@@ -271,11 +271,12 @@ export default function Home() {
           </p>
         </motion.div>
 
-        {/* Category Filter */}
-        <CategoryFilter
-          selectedCategory={selectedCategory}
-          onCategoryChange={handleCategoryChange}
-        />
+        <div className="mb-8">
+            <CategoryFilter
+              selectedCategory={selectedCategory}
+              onCategoryChange={handleCategoryChange}
+            />
+        </div>
 
         {/* Map and Items Grid */}
         <div className="grid lg:grid-cols-2 gap-8">

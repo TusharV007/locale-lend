@@ -17,13 +17,15 @@ interface User {
   email: string | null;
   displayName: string | null;
   photoURL?: string | null;
+  role?: 'admin' | 'user';
+  isBlocked?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string, referralCode?: string) => Promise<void>;
   signOut: () => Promise<void>;
   sendEmailOTP: (email: string) => Promise<void>; // Deprecated/Stubbed
   verifyEmailOTP: (email: string, otp: string) => Promise<void>; // Deprecated/Stubbed
@@ -37,14 +39,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL
-        });
+        // Fetch full profile from Firestore to get role
+        try {
+          const { fetchUserProfile } = await import("@/lib/db");
+          let profile = await fetchUserProfile(firebaseUser.uid);
+          
+          // Auto-Healing: If user exists in Auth but not Firestore, create profile
+          if (!profile) {
+            console.log("Healing missing profile for UID:", firebaseUser.uid);
+            const { adminUpdateUser, generateUniqueReferralCode } = await import("@/lib/db");
+            const generatedCode = await generateUniqueReferralCode(firebaseUser.displayName || 'Neighbor');
+            const newProfile = {
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Neighbor',
+              email: firebaseUser.email,
+              verified: false,
+              trustScore: 0,
+              totalReviews: 0,
+              itemsLentCount: 0,
+              itemsBorrowedCount: 0,
+              memberSince: new Date(),
+              role: (firebaseUser.email === 'admin@gmail.com' ? 'admin' : 'user') as 'admin' | 'user',
+              referralCode: generatedCode,
+              referralPoints: 0,
+              referralCount: 0
+            };
+            await adminUpdateUser(firebaseUser.uid, newProfile);
+            profile = { ...newProfile, id: firebaseUser.uid };
+          }
+
+          let role = profile?.role || 'user';
+
+          // Bootstrap Admin: Automatically promote admin@gmail.com
+          if (firebaseUser.email === 'admin@gmail.com' && role !== 'admin') {
+            try {
+              const { adminUpdateUser, generateUniqueReferralCode } = await import("@/lib/db");
+              const updates: any = { 
+                role: 'admin',
+                name: firebaseUser.displayName || 'Admin',
+                email: firebaseUser.email
+              };
+              if (!profile?.referralCode) {
+                updates.referralCode = await generateUniqueReferralCode('Admin');
+              }
+              await adminUpdateUser(firebaseUser.uid, updates);
+              role = 'admin';
+            } catch (promoteErr) {
+              console.error("Failed to bootstrap admin:", promoteErr);
+            }
+          }
+
+          // Case where profile exists but lacks referral code (Legacy Users)
+          if (profile && !profile.referralCode) {
+            const { adminUpdateUser, generateUniqueReferralCode } = await import("@/lib/db");
+            const generatedCode = await generateUniqueReferralCode(profile.name);
+            await adminUpdateUser(firebaseUser.uid, { referralCode: generatedCode });
+          }
+          
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName || profile?.name || null,
+            photoURL: firebaseUser.photoURL,
+            role: role,
+            isBlocked: profile?.isBlocked || false
+          });
+        } catch (err) {
+          console.error("Error fetching user profile in auth:", err);
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            role: 'user'
+          });
+        }
       } else {
         setUser(null);
       }
@@ -69,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, displayName: string) => {
+  const signUp = async (email: string, password: string, displayName: string, referralCode?: string) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Update profile with display name
@@ -77,12 +147,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         displayName: displayName
       });
 
+      // Create Firestore profile
+      try {
+        const { adminUpdateUser, generateUniqueReferralCode, processReferral } = await import("@/lib/db");
+        const generatedCode = await generateUniqueReferralCode(displayName);
+        
+        await adminUpdateUser(userCredential.user.uid, {
+          name: displayName,
+          email: email,
+          verified: false,
+          trustScore: 0,
+          totalReviews: 0,
+          itemsLentCount: 0,
+          itemsBorrowedCount: 0,
+          memberSince: new Date(),
+          role: email === 'admin@gmail.com' ? 'admin' : 'user',
+          referralCode: generatedCode,
+          referralPoints: 0,
+          referralCount: 0
+        });
+
+        // Process referral if code provided
+        if (referralCode) {
+          await processReferral(userCredential.user.uid, referralCode);
+        }
+      } catch (dbErr) {
+        console.error("Error creating Firestore profile on signup:", dbErr);
+      }
+
       // Force update local user state since onAuthStateChanged might fire before updateProfile completes
       setUser({
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         displayName: displayName,
-        photoURL: userCredential.user.photoURL
+        photoURL: userCredential.user.photoURL,
+        role: email === 'admin@gmail.com' ? 'admin' : 'user'
       });
 
       toast.success("Account created successfully!");

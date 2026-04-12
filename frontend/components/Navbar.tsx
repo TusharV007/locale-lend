@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { Search, PlusCircle, MessageCircle, User, LogOut, Package } from 'lucide-react';
+import { Search, PlusCircle, MessageCircle, User, LogOut, Package, ShieldAlert, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -120,12 +120,20 @@ export function Navbar({ className, onAddItemClick, onSearch }: NavbarProps) {
                 <DropdownMenuItem onClick={() => router.push('/profile')}>
                   <Package className="mr-2 h-4 w-4" /> My Items
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/profile?tab=rewards')}>
+                  <Gift className="mr-2 h-4 w-4 text-primary" /> Community Rewards
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push('/messages')}>
                   <MessageCircle className="mr-2 h-4 w-4" /> Messages
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push('/settings')}>
                   <User className="mr-2 h-4 w-4" /> Settings
                 </DropdownMenuItem>
+                {user?.role === 'admin' && (
+                  <DropdownMenuItem onClick={() => router.push('/admin')} className="text-blue-500 font-bold bg-blue-500/5">
+                    <ShieldAlert className="mr-2 h-4 w-4" /> Admin Panel
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <LogOut className="mr-2 h-4 w-4" /> Logout

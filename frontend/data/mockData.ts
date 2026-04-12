@@ -188,6 +188,36 @@ export const mockItems: Item[] = [
     status: 'available',
     borrowCount: 30,
   },
+  {
+    id: 'item-9',
+    ownerId: 'user-2',
+    owner: mockUsers[1],
+    title: 'Concrete Mixer',
+    description: 'Heavy duty concrete mixer. Perfect for small construction projects.',
+    category: 'Construction',
+    location: { type: 'Point' as const, coordinates: [80.4360, 16.3065] },
+    images: ['https://images.unsplash.com/photo-1579483115913-74752182281b?w=400'],
+    availabilityStatus: 'Available',
+    distance: 320,
+    createdAt: new Date('2024-10-01'),
+    status: 'available',
+    borrowCount: 2,
+  },
+  {
+    id: 'item-10',
+    ownerId: 'user-3',
+    owner: mockUsers[2],
+    title: 'Electric Lawn Mower',
+    description: 'Cordless electric lawn mower, easy to use and very quiet.',
+    category: 'Gardening',
+    location: { type: 'Point' as const, coordinates: [80.4375, 16.3075] },
+    images: ['https://images.unsplash.com/photo-1592419044706-39796d40f98c?w=400'],
+    availabilityStatus: 'Available',
+    distance: 280,
+    createdAt: new Date('2024-09-15'),
+    status: 'available',
+    borrowCount: 4,
+  },
 ];
 
 // Category configuration with colors and icons
@@ -198,6 +228,14 @@ export const categoryConfig: Record<ItemCategory, { color: string; bgColor: stri
   Outdoor: { color: 'text-category-outdoor', bgColor: 'bg-category-outdoor/10', icon: 'Tent' },
   Books: { color: 'text-category-books', bgColor: 'bg-category-books/10', icon: 'BookOpen' },
   Sports: { color: 'text-category-sports', bgColor: 'bg-category-sports/10', icon: 'Bike' },
+  Construction: { color: 'text-category-construction', bgColor: 'bg-category-construction/10', icon: 'Hammer' },
+  Gardening: { color: 'text-category-gardening', bgColor: 'bg-category-gardening/10', icon: 'Sprout' },
+  Party: { color: 'text-category-party', bgColor: 'bg-category-party/10', icon: 'PartyPopper' },
+  Toys: { color: 'text-category-toys', bgColor: 'bg-category-toys/10', icon: 'Gamepad2' },
+  Clothing: { color: 'text-category-clothing', bgColor: 'bg-category-clothing/10', icon: 'Shirt' },
+  Musical: { color: 'text-category-musical', bgColor: 'bg-category-musical/10', icon: 'Music' },
+  Health: { color: 'text-category-health', bgColor: 'bg-category-health/10', icon: 'Dumbbell' },
+  Home: { color: 'text-category-home', bgColor: 'bg-category-home/10', icon: 'Home' },
 };
 
 /**
