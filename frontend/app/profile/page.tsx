@@ -37,6 +37,7 @@ import { toast } from 'sonner';
 import { ReferralCard } from '@/components/ReferralCard';
 import { User as DBUser } from '@/types';
 import { fetchUserProfile, fetchReferralPointsHistory } from '@/lib/db';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 
 function ProfilePageContent() {
     const { user, loading: authLoading } = useAuth();
@@ -56,6 +57,7 @@ function ProfilePageContent() {
     const [reviewTransaction, setReviewTransaction] = useState<HistoryItem | null>(null);
     const [revieweeId, setRevieweeId] = useState<string>('');
     const [reviewedTransactions, setReviewedTransactions] = useState<Set<string>>(new Set());
+    const { performAction } = useAsyncAction();
 
     // Pagination state for listings
     const [listingsLastDoc, setListingsLastDoc] = useState<any>(null);
@@ -151,14 +153,16 @@ function ProfilePageContent() {
     };
 
     const handleCompleteRequest = async (requestId: string) => {
-        try {
-            await updateRequestStatus(requestId, 'completed');
-            setLendingHistory(prev => prev.map(item => item.requestId === requestId ? { ...item, status: 'completed' } : item));
-            setBorrowingHistory(prev => prev.map(item => item.requestId === requestId ? { ...item, status: 'completed' } : item));
-            toast.success('Transaction marked as completed. You can now leave a review.');
-        } catch (error) {
-            toast.error('Failed to update status');
-        }
+        await performAction(
+            () => updateRequestStatus(requestId, 'completed'),
+            {
+                successMessage: 'Transaction marked as completed!',
+                onSuccess: () => {
+                    setLendingHistory(prev => prev.map(item => item.requestId === requestId ? { ...item, status: 'completed' } : item));
+                    setBorrowingHistory(prev => prev.map(item => item.requestId === requestId ? { ...item, status: 'completed' } : item));
+                }
+            }
+        );
     };
 
     const HistoryCard = ({ item, role }: { item: HistoryItem; role: 'lender' | 'borrower' }) => {
@@ -448,13 +452,16 @@ function ProfilePageContent() {
                         <AlertDialogAction
                             onClick={async () => {
                                 if (!itemToDelete || !user) return;
-                                try {
-                                    await deleteItem(itemToDelete.id, user.uid);
-                                    setListings(prev => prev.filter(l => l.id !== itemToDelete.id));
-                                    toast.success('Item deleted');
-                                } catch {
-                                    toast.error('Failed to delete item');
-                                }
+                                await performAction(
+                                    () => deleteItem(itemToDelete.id, user.uid),
+                                    {
+                                        successMessage: 'Item deleted permanently',
+                                        onSuccess: () => {
+                                            setListings(prev => prev.filter(l => l.id !== itemToDelete.id));
+                                            setItemToDelete(null);
+                                        }
+                                    }
+                                );
                             }}
                             className="bg-red-600 focus:ring-red-600 hover:bg-red-700 text-white"
                         >

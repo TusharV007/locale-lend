@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Mail, Lock, User, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatePresence } from 'framer-motion';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 
 
 export const AuthForm = () => {
@@ -19,6 +20,7 @@ export const AuthForm = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { performAction } = useAsyncAction();
 
   // Sign In State
   const [signInData, setSignInData] = useState({ email: '', password: '' });
@@ -37,19 +39,14 @@ export const AuthForm = () => {
     e.preventDefault();
     if (!signInData.email || !signInData.password) return;
 
-    setIsLoading(true);
-    try {
-      await signIn(signInData.email, signInData.password);
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully signed in.",
-      });
-      router.push('/');
-    } catch (error) {
-      // Context handles error toast usually
-    } finally {
-      setIsLoading(false);
-    }
+    await performAction(
+      () => signIn(signInData.email, signInData.password),
+      {
+        successMessage: "Welcome back!",
+        onSuccess: () => router.push('/'),
+        onError: () => setIsLoading(false),
+      }
+    );
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -65,28 +62,14 @@ export const AuthForm = () => {
       return;
     }
 
-    if (signUpData.password.length < 6) {
-      toast({
-        variant: "destructive",
-        title: "Password too weak",
-        description: "Password must be at least 6 characters.",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await signUp(signUpData.email, signUpData.password, signUpData.displayName, signUpData.referralCode);
-      toast({
-        title: "Account Created",
-        description: "Welcome to Local Share!",
-      });
-      router.push('/');
-    } catch (error) {
-      // Context handles error toast
-    } finally {
-      setIsLoading(false);
-    }
+    await performAction(
+      () => signUp(signUpData.email, signUpData.password, signUpData.displayName, signUpData.referralCode),
+      {
+        successMessage: "Account Created! Welcome to Local Share.",
+        onSuccess: () => router.push('/'),
+        onError: () => setIsLoading(false),
+      }
+    );
   };
 
   return (

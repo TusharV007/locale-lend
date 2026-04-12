@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { toast } from 'sonner';
 import { addItem, updateItem, fetchUserProfile } from '@/lib/db';
 import { compressImage } from '@/lib/utils';
@@ -26,6 +27,7 @@ const CATEGORIES: ItemCategory[] = ['Tools', 'Electronics', 'Kitchen', 'Outdoor'
 
 export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, adminMode = false }: AddItemModalProps) {
     const { user: authUser } = useAuth();
+    const { performAction } = useAsyncAction();
     const isEditMode = !!editItem;
     const [mounted, setMounted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -151,22 +153,19 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmitting(true);
-        try {
+        
+        await performAction(async () => {
+            setIsSubmitting(true);
             const targetUId = adminMode ? selectedOwnerId : (authUser?.uid || 'anonymous');
             let finalImageUrl = formData.image;
 
             // 1. Handle deferred S3 Upload if a new file was selected
             if (selectedFile) {
-                const uploadToastId = toast.loading('Uploading image to cloud...');
                 try {
                     const filename = `items/${targetUId}/${Date.now()}-item-image.jpg`;
                     finalImageUrl = await uploadImage(selectedFile, filename);
-                    toast.success('Upload complete!', { id: uploadToastId });
                 } catch (err) {
-                    toast.error('Cloud upload failed. Please try again.', { id: uploadToastId });
-                    setIsSubmitting(false);
-                    return;
+                    throw new Error('Cloud upload failed. Please try again.');
                 }
             }
 
@@ -181,7 +180,6 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                     rentalPricePerDay: formData.rentalPricePerDay,
                 };
                 
-                // Only update images if we have a new S3 URL
                 if (finalImageUrl && finalImageUrl !== editItem.images?.[0]) {
                     updates.images = [finalImageUrl];
                 }
@@ -190,23 +188,13 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                     updates.location = itemLocation;
                 }
                 await updateItem(editItem.id, updates);
-                toast.success('Item updated successfully!');
             } else {
                 // Fetch latest user profile gracefully 
                 let profile = null;
-                
-                try {
-                    if (targetUId) {
-                        profile = await fetchUserProfile(targetUId);
-                    }
-                } catch (err) {
-                    console.warn('Could not fetch user profile, using defaults:', err);
+                if (targetUId) {
+                    profile = await fetchUserProfile(targetUId).catch(() => null);
                 }
                 
-                if (adminMode && !profile) {
-                    profile = allUsers.find(u => u.id === targetUId) || null;
-                }
-
                 const ownerData: any = {
                     id: targetUId,
                     name: profile?.name || (targetUId === authUser?.uid ? authUser?.displayName : 'Neighbor'),
@@ -222,7 +210,6 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                     verified: profile?.verified || false,
                 };
 
-                // Create new item
                 const newItem = {
                     title: formData.title,
                     description: formData.description,
@@ -235,18 +222,19 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                     images: [finalImageUrl],
                     borrowCount: 0,
                     rentalPricePerDay: formData.rentalPricePerDay,
+                    createdAt: new Date().toISOString()
                 };
                 await addItem(newItem);
-                toast.success('Item listed successfully!');
             }
-
-            onSuccess();
-            onClose();
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Failed to save item');
-        } finally {
-            setIsSubmitting(false);
-        }
+        }, {
+            successMessage: isEditMode ? 'Item updated successfully!' : 'Item listed successfully!',
+            onSuccess: () => {
+                onSuccess();
+                onClose();
+            },
+            onError: () => setIsSubmitting(false)
+        });
+        setIsSubmitting(false);
     };
     if (!mounted) return null;
 

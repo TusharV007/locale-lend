@@ -20,6 +20,7 @@ import { ActionConfirmModal } from "@/components/ActionConfirmModal";
 import { AddItemModal } from "@/components/AddItemModal";
 import { RefreshCw, Edit3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 
 export default function ItemManagement() {
   const [items, setItems] = useState<Item[]>([]);
@@ -32,23 +33,32 @@ export default function ItemManagement() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { performAction } = useAsyncAction();
   useEffect(() => {
     loadItems();
   }, []);
 
   async function loadItems(isManualRefresh = false) {
-    try {
-      if (isManualRefresh) setIsRefreshing(true);
-      else setLoading(true);
-      
-      const allItems = await fetchAllItemsAdmin();
-      setItems(allItems);
-      if (isManualRefresh) toast.success("Inventory updated");
-    } catch (err) {
-      toast.error("Failed to load items");
-    } finally {
-      setLoading(false);
+    if (isManualRefresh) {
+      await performAction(async () => {
+        setIsRefreshing(true);
+        const allItems = await fetchAllItemsAdmin();
+        setItems(allItems);
+      }, {
+        successMessage: "Inventory list updated",
+        onError: () => setIsRefreshing(false)
+      });
       setIsRefreshing(false);
+    } else {
+      try {
+        setLoading(true);
+        const allItems = await fetchAllItemsAdmin();
+        setItems(allItems);
+      } catch (err) {
+        toast.error("Failed to load items");
+      } finally {
+        setLoading(false);
+      }
     }
   }
 
@@ -60,16 +70,17 @@ export default function ItemManagement() {
   const confirmDelete = async () => {
     if (!itemToDelete) return;
 
-    try {
-      await adminDeleteItem(itemToDelete.id);
-      setItems(prev => prev.filter(i => i.id !== itemToDelete.id));
-      toast.success("Item deleted successfully");
-    } catch (err) {
-      toast.error("Failed to delete item");
-    } finally {
-      setIsConfirmOpen(false);
-      setItemToDelete(null);
-    }
+    await performAction(
+      () => adminDeleteItem(itemToDelete.id),
+      {
+        successMessage: `"${itemToDelete.title}" removed from marketplace`,
+        onSuccess: () => {
+          setItems(prev => prev.filter(i => i.id !== itemToDelete.id));
+          setIsConfirmOpen(false);
+          setItemToDelete(null);
+        }
+      }
+    );
   };
 
   const handleEditItem = (item: Item) => {

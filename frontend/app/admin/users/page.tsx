@@ -12,6 +12,7 @@ import { ActionConfirmModal } from "@/components/ActionConfirmModal";
 import { auth } from "@/lib/firebase";
 import { RefreshCw, Search, Filter, MoreHorizontal, ShieldCheck, Ban, UserPlus, Mail, Edit2, Trash2, X, Check, UserCheck, Database } from "lucide-react";
 import { toast } from "sonner";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -22,6 +23,7 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { performAction } = useAsyncAction();
 
   useEffect(() => {
     loadUsers();
@@ -71,75 +73,67 @@ export default function UserManagement() {
   };
 
   const handleBulkSync = async () => {
-    try {
-      setIsSyncing(true);
-      const user = auth.currentUser;
-      if (!user) {
-        toast.error("You must be logged in to sync users");
-        return;
-      }
-
-      const token = await user.getIdToken();
-      const response = await fetch('/api/admin/sync', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Sync failed');
-      }
-
-      toast.success(data.message);
-      if (data.syncedCount > 0) {
-        loadUsers();
-      }
-    } catch (err: any) {
-      console.error("Bulk sync error:", err);
-      toast.error(err.message || "Failed to synchronize users");
-    } finally {
-      setIsSyncing(false);
+    const user = auth.currentUser;
+    if (!user) {
+      toast.error("You must be logged in to sync users");
+      return;
     }
+
+    await performAction(
+      async () => {
+        setIsSyncing(true);
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/sync', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Sync failed');
+        return data;
+      },
+      {
+        successMessage: "User synchronization complete!",
+        onSuccess: () => loadUsers(),
+        onError: () => setIsSyncing(false),
+      }
+    );
+    setIsSyncing(false);
   };
 
   const handleDeleteUser = async () => {
     if (!deleteConfirmUser) return;
-    try {
-      setIsDeleting(true);
-      const user = auth.currentUser;
-      if (!user) {
-        toast.error("You must be logged in to perform this action");
-        return;
-      }
-
-      const token = await user.getIdToken();
-      const response = await fetch('/api/admin/users/delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ userId: deleteConfirmUser.id })
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Purge failed');
-      }
-
-      setUsers(prev => prev.filter(u => u.id !== deleteConfirmUser.id));
-      toast.success(data.message);
-      setDeleteConfirmUser(null);
-    } catch (err: any) {
-      console.error("Purge error:", err);
-      toast.error(err.message || "Failed to fully purge user");
-    } finally {
-      setIsDeleting(false);
+    const user = auth.currentUser;
+    if (!user) {
+      toast.error("You must be logged in to perform this action");
+      return;
     }
+
+    await performAction(
+      async () => {
+        setIsDeleting(true);
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/users/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ userId: deleteConfirmUser.id })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Purge failed');
+        return data;
+      },
+      {
+        successMessage: "User fully purged from system.",
+        onSuccess: () => {
+          setUsers(prev => prev.filter(u => u.id !== deleteConfirmUser.id));
+          setDeleteConfirmUser(null);
+        },
+        onError: () => setIsDeleting(false),
+      }
+    );
+    setIsDeleting(false);
   };
 
   const filteredUsers = users.filter(u => {

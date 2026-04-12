@@ -30,9 +30,11 @@ interface AppState {
   isRequestModalOpen: boolean;
   setRequestModalOpen: (open: boolean) => void;
   
-  // Loading states
-  isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
+  // Global Loading Progress (Top Bar)
+  globalLoading: boolean;
+  globalProgress: number;
+  setGlobalLoading: (loading: boolean) => void;
+  setGlobalProgress: (progress: number) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -59,4 +61,9 @@ export const useStore = create<AppState>((set) => ({
   
   isLoading: false,
   setIsLoading: (loading) => set({ isLoading: loading }),
+
+  globalLoading: false,
+  globalProgress: 0,
+  setGlobalLoading: (loading) => set({ globalLoading: loading }),
+  setGlobalProgress: (progress) => set({ globalProgress: progress }),
 }));

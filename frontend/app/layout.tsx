@@ -14,6 +14,8 @@ const geistMono = Geist_Mono({
 
 
 import { Providers } from "./providers";
+import { TopProgressBar } from "@/components/TopProgressBar";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Local Share",
@@ -27,9 +29,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
+      <body className="antialiased font-sans">
         <Providers>
+          <TopProgressBar />
           {children}
+          <Toaster position="top-center" expand={true} richColors />
         </Providers>
       </body>
     </html>

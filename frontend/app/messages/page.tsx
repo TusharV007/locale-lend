@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { fetchUserRequests, updateRequestStatus, type RequestData } from '@/lib/db';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 
 export default function MessagesPage() {
     const { user, loading: authLoading } = useAuth();
@@ -23,6 +24,7 @@ export default function MessagesPage() {
     const [selectedRequest, setSelectedRequest] = useState<RequestData | null>(null);
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
     const [paymentRequest, setPaymentRequest] = useState<RequestData | null>(null);
+    const { performAction } = useAsyncAction();
 
     useEffect(() => {
         if (!authLoading && !user) router.push('/auth');
@@ -49,13 +51,13 @@ export default function MessagesPage() {
     }, [user]);
 
     const handleStatusUpdate = async (requestId: string, newStatus: 'accepted' | 'rejected') => {
-        try {
-            await updateRequestStatus(requestId, newStatus);
-            toast.success(`Request ${newStatus}`);
-            fetchRequests();
-        } catch (error) {
-            toast.error('Failed to update request status');
-        }
+        await performAction(
+            () => updateRequestStatus(requestId, newStatus),
+            {
+                successMessage: `Request ${newStatus} successfully!`,
+                onSuccess: () => fetchRequests(),
+            }
+        );
     };
 
     // Auto-open chat from notification query param
