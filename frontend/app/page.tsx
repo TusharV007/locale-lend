@@ -21,6 +21,8 @@ import { useStore } from '@/store/useStore';
 import { mockUsers, DEFAULT_USER_LOCATION } from '@/data/mockData';
 import { fetchItems } from '@/lib/db';
 import type { Item, ItemCategory } from '@/types';
+import { calculateDistance } from '@/lib/utils';
+import { useLocation } from '@/hooks/useLocation';
 
 import { AddItemModal } from '@/components/AddItemModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +55,8 @@ export default function Home() {
     setCurrentUser
   } = useStore();
 
+  const { userLocation: actualLocation, requestUserLocation } = useLocation();
+
   const fetchItemsData = async (
     location = userLocation || DEFAULT_USER_LOCATION,
     reset = true,
@@ -64,20 +68,11 @@ export default function Home() {
       const result = await fetchItems(12, query, lastDoc);
 
       const realItemsWithDistance = result.items.map(item => {
-        if (!location || !item.location) return { ...item, distance: 0 };
-        
-        const itemLocation = item.location as any;
-        const targetCoords = itemLocation.coordinates || (itemLocation.lng !== undefined && itemLocation.lat !== undefined ? [itemLocation.lng, itemLocation.lat] : null);
-        if (!targetCoords || targetCoords.length < 2 || targetCoords[1] === undefined) return { ...item, distance: 0 };
-
-        const R = 6371e3;
-        const lat1 = location.coordinates[1] * Math.PI / 180;
-        const lat2 = targetCoords[1] * Math.PI / 180;
-        const dLat = (targetCoords[1] - location.coordinates[1]) * Math.PI / 180;
-        const dLon = (targetCoords[0] - location.coordinates[0]) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-        const dist = Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-        return { ...item, distance: dist };
+        const itemWithDistance = { ...item, distance: 0 };
+        if (location && item.location) {
+          itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
+        }
+        return itemWithDistance;
       });
 
       if (reset) {
@@ -101,29 +96,9 @@ export default function Home() {
   };
 
 
-  const requestUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const userPos = { type: 'Point' as const, coordinates: [longitude, latitude] as [number, number] };
-          setUserLocation(userPos);
-          setShowLocationModal(false);
-          toast.success("Location found!", { description: "Showing items near you." });
-          fetchItemsData(userPos, true);
-        },
-        (error) => {
-          console.error("Location access denied or error:", error);
-          if (error.code === error.PERMISSION_DENIED) {
-             toast.error("Location access requires browser permission", { description: "Please click the lock icon in your address bar to allow Location, then try again." });
-          }
-          setShowLocationModal(true);
-        }
-      );
-    } else {
-      toast.error("Geolocation not supported by your browser");
-      setShowLocationModal(true);
-    }
+  const handleRequestLocation = () => {
+    requestUserLocation();
+    setShowLocationModal(false);
   };
 
   // Initialize with data and location
@@ -138,20 +113,11 @@ export default function Home() {
         const location = userLocation || DEFAULT_USER_LOCATION;
         
         const filteredMapItems = result.items.map(item => {
-          if (!location || !item.location) return { ...item, distance: 0 };
-          
-          const itemLocation = item.location as any;
-          const targetCoords = itemLocation.coordinates || (itemLocation.lng !== undefined && itemLocation.lat !== undefined ? [itemLocation.lng, itemLocation.lat] : null);
-          if (!targetCoords || targetCoords.length < 2) return { ...item, distance: 0 };
-
-          const R = 6371e3;
-          const lat1 = location.coordinates[1] * Math.PI / 180;
-          const lat2 = targetCoords[1] * Math.PI / 180;
-          const dLat = (targetCoords[1] - location.coordinates[1]) * Math.PI / 180;
-          const dLon = (targetCoords[0] - location.coordinates[0]) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-          const dist = Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-          return { ...item, distance: dist };
+          const itemWithDistance = { ...item, distance: 0 };
+          if (location && item.location) {
+            itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
+          }
+          return itemWithDistance;
         }).filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS);
 
         setMapItems(filteredMapItems);
@@ -162,8 +128,8 @@ export default function Home() {
     fetchMapItemsData();
 
     // Request Location
-    requestUserLocation();
-  }, [user, selectedCategory]);
+    requestUserLocation(true); // Silent request
+  }, [user, selectedCategory, requestUserLocation]);
 
   // Handle search with debounce
   useEffect(() => {
@@ -439,7 +405,7 @@ export default function Home() {
       {/* Location Required Modal */}
       <LocationRequiredModal
         isOpen={showLocationModal}
-        onRetry={requestUserLocation}
+        onRetry={handleRequestLocation}
       />
     </div>
   );

@@ -16,11 +16,14 @@ import { RequestModal } from '@/components/RequestModal';
 import { AddItemModal } from '@/components/AddItemModal';
 import { toast } from 'sonner';
 import { useStore } from '@/store/useStore';
+import { calculateDistance } from '@/lib/utils';
+import { useLocation } from '@/hooks/useLocation';
 
 function SearchPageContent() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { userLocation, requestUserLocation } = useLocation();
 
     const query = searchParams.get('q') || '';
     const categoryParam = searchParams.get('category') as ItemCategory | null;
@@ -43,35 +46,21 @@ function SearchPageContent() {
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/auth');
+        } else if (user) {
+            requestUserLocation(true); // Attempt to get location silently
         }
-    }, [user, authLoading, router]);
+    }, [user, authLoading, router, requestUserLocation]);
 
     const fetchSearchResults = async () => {
         setLoading(true);
         try {
-            // fetchItems now returns PaginatedItems — destructure .items
-            const result = await fetchItems(50, query);
-
-            const userPos: GeoJSONPoint = DEFAULT_USER_LOCATION;
+            const location = userLocation || DEFAULT_USER_LOCATION;
             const resultsWithDistance = result.items.map(item => {
-                if (!item.location) return { ...item, distance: 0 };
-                
-                const itemLocation = item.location as any;
-                const targetCoords = itemLocation.coordinates || (itemLocation.lng !== undefined && itemLocation.lat !== undefined ? [itemLocation.lng, itemLocation.lat] : null);
-                if (!targetCoords || targetCoords.length < 2 || targetCoords[1] === undefined) return { ...item, distance: 0 };
-
-                const R = 6371e3;
-                const lat1 = userPos.coordinates[1] * Math.PI / 180;
-                const lat2 = targetCoords[1] * Math.PI / 180;
-                const dLat = (targetCoords[1] - userPos.coordinates[1]) * Math.PI / 180;
-                const dLon = (targetCoords[0] - userPos.coordinates[0]) * Math.PI / 180;
-
-                const a = Math.sin(dLat / 2) ** 2 +
-                    Math.cos(lat1) * Math.cos(lat2) *
-                    Math.sin(dLon / 2) ** 2;
-                const dist = Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-
-                return { ...item, distance: dist };
+                const itemWithDistance = { ...item, distance: 0 };
+                if (location && item.location) {
+                    itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
+                }
+                return itemWithDistance;
             });
 
             setItems(resultsWithDistance);
@@ -87,7 +76,7 @@ function SearchPageContent() {
         if (user) {
             fetchSearchResults();
         }
-    }, [query, user]);
+    }, [query, user, userLocation]);
 
     const handleSearch = (newQuery: string) => {
         if (!newQuery.trim()) return;
