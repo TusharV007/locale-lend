@@ -15,6 +15,7 @@ service cloud.firestore {
     // Note: This requires the user doc to exist with a 'role' field
     function isAdmin() {
       return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -58,9 +59,11 @@ service cloud.firestore {
       // Messages sub-collection
       match /messages/{messageId} {
         allow read, write: if isSignedIn() && (
-          get(/databases/$(database)/documents/requests/$(requestId)).data.borrowerId == request.auth.uid ||
-          get(/databases/$(database)/documents/requests/$(requestId)).data.lenderId == request.auth.uid ||
-          isAdmin()
+          exists(/databases/$(database)/documents/requests/$(requestId)) && (
+            get(/databases/$(database)/documents/requests/$(requestId)).data.borrowerId == request.auth.uid ||
+            get(/databases/$(database)/documents/requests/$(requestId)).data.lenderId == request.auth.uid ||
+            isAdmin()
+          )
         );
       }
     }

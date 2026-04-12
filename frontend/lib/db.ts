@@ -258,7 +258,7 @@ export const createRequest = async (request: Omit<RequestData, "id" | "createdAt
             createdAt: Timestamp.now()
         });
 
-        // Notify lender of new request
+        // 1. Notify lender via in-app notification
         await createNotification({
             userId: request.lenderId,
             type: 'new_request',
@@ -267,6 +267,30 @@ export const createRequest = async (request: Omit<RequestData, "id" | "createdAt
             requestId: docRef.id,
             itemTitle: request.itemTitle,
         });
+
+        // 2. Notify lender via Professional Email (Resend)
+        try {
+            const lenderProfile = await fetchUserProfile(request.lenderId);
+            if (lenderProfile?.email) {
+                const amount = (request.rentalPricePerDay || 0) * (request.rentalDays || 1);
+                await fetch('/api/emails', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'NEW_REQUEST',
+                        payload: {
+                            to: lenderProfile.email,
+                            borrowerName: request.borrowerName,
+                            itemTitle: request.itemTitle,
+                            requestId: docRef.id,
+                            amount
+                        }
+                    })
+                });
+            }
+        } catch (emailErr) {
+            console.warn("Email notification failed:", emailErr);
+        }
 
         return docRef.id;
     } catch (error) {
@@ -331,7 +355,8 @@ export const updateRequestStatus = async (requestId: string, status: 'accepted' 
             }
 
             // Notify borrower
-            if (status !== 'completed') {
+            if (status === 'accepted' || status === 'rejected') {
+                // 1. In-app Notification
                 await createNotification({
                     userId: requestData.borrowerId,
                     type: status === 'accepted' ? 'request_accepted' : 'request_rejected',
@@ -342,6 +367,29 @@ export const updateRequestStatus = async (requestId: string, status: 'accepted' 
                     requestId,
                     itemTitle: requestData.itemTitle,
                 });
+
+                // 2. Professional Email Notification (Resend)
+                try {
+                    const borrowerProfile = await fetchUserProfile(requestData.borrowerId);
+                    if (borrowerProfile?.email) {
+                        await fetch('/api/emails', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: 'REQUEST_STATUS_UPDATE',
+                                payload: {
+                                    to: borrowerProfile.email,
+                                    status: status,
+                                    lenderName: requestData.lenderName,
+                                    itemTitle: requestData.itemTitle,
+                                    requestId: requestId
+                                }
+                            })
+                        });
+                    }
+                } catch (emailErr) {
+                    console.warn("Status update email failed:", emailErr);
+                }
             } else if (status === 'completed') {
                 // Reward beide users for successful transaction
                 // Reward Lender

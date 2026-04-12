@@ -43,7 +43,22 @@ export const AuthForm = () => {
       () => signIn(signInData.email, signInData.password),
       {
         successMessage: "Welcome back!",
-        onSuccess: () => router.push('/'),
+        onSuccess: () => {
+          // Trigger Login Notification Email (Non-blocking)
+          fetch('/api/emails', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'LOGIN',
+              payload: {
+                to: signInData.email,
+                name: 'Neighbor' // We don't have the name in local state for login, fallback to generic
+              }
+            })
+          }).catch(err => console.error("Login email failed:", err));
+          
+          router.push('/');
+        },
         onError: () => setIsLoading(false),
       }
     );
@@ -66,7 +81,22 @@ export const AuthForm = () => {
       () => signUp(signUpData.email, signUpData.password, signUpData.displayName, signUpData.referralCode),
       {
         successMessage: "Account Created! Welcome to Local Share.",
-        onSuccess: () => router.push('/'),
+        onSuccess: () => {
+          // Trigger Welcome Email (Non-blocking)
+          fetch('/api/emails', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'WELCOME',
+              payload: {
+                to: signUpData.email,
+                name: signUpData.displayName
+              }
+            })
+          }).catch(err => console.error("Welcome email failed:", err));
+
+          router.push('/');
+        },
         onError: () => setIsLoading(false),
       }
     );
