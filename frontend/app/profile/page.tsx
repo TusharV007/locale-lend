@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Navbar } from '@/components/Navbar';
 import { AddItemModal } from '@/components/AddItemModal';
@@ -38,7 +38,7 @@ import { ReferralCard } from '@/components/ReferralCard';
 import { User as DBUser } from '@/types';
 import { fetchUserProfile, fetchReferralPointsHistory } from '@/lib/db';
 
-export default function ProfilePage() {
+function ProfilePageContent() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const [listings, setListings] = useState<Item[]>([]);
@@ -483,5 +483,17 @@ export default function ProfilePage() {
                revieweeId={revieweeId}
             />
         </div>
+    );
+}
+
+export default function ProfilePage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        }>
+            <ProfilePageContent />
+        </Suspense>
     );
 }
