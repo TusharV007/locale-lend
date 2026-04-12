@@ -54,6 +54,7 @@ function SearchPageContent() {
     const fetchSearchResults = async () => {
         setLoading(true);
         try {
+            const result = await fetchItems(50, query);
             const location = userLocation || DEFAULT_USER_LOCATION;
             const resultsWithDistance = result.items.map(item => {
                 const itemWithDistance = { ...item, distance: 0 };
