@@ -1369,20 +1369,27 @@ export const processReferral = async (newUserId: string, referralCode: string) =
             const referrerDoc = snap.docs[0];
             const referrerId = referrerDoc.id;
             
-            // 1. Mark new user as referred
+            console.log(`Processing referral: Referrer ${referrerId}, New User ${newUserId}`);
+
+            // 1. Log and Reward new user
+            // This ensures they have a history entry for their bonus
+            await updateReferralPoints(newUserId, 50, "Welcome bonus for joining via referral");
+            
+            // Mark the referral relationship on new user (they have permission for their own doc)
             const newUserRef = doc(db, USERS_COLLECTION, newUserId);
             await updateDoc(newUserRef, {
-                referredBy: referralCode,
-                referralPoints: 50 // New user bonus
+                referredBy: referralCode
             });
             
-            // 2. Reward referrer
+            // 2. Reward referrer securely
             const currentReferralCount = referrerDoc.data().referralCount || 0;
-            const referrerRef = doc(db, USERS_COLLECTION, referrerId);
-            await updateDoc(referrerRef, {
-                referralCount: currentReferralCount + 1,
-            });
             
+            // Update the referral count via secure API (since current user doesn't own referrer doc)
+            await secureUpdateUserStats(referrerId, {
+                referralCount: currentReferralCount + 1,
+            }, `Referral for user ${newUserId}`);
+            
+            // Add the points and history entry for the referrer
             await updateReferralPoints(referrerId, 50, "Referral sign-up bonus");
             
             console.log(`Successfully processed referral from ${referralCode} for user ${newUserId}`);
@@ -1391,7 +1398,7 @@ export const processReferral = async (newUserId: string, referralCode: string) =
         return false;
     } catch (error: any) {
         if (error.code === 'permission-denied') {
-            console.error("CRITICAL: Referral processing failed due to missing Firestore permissions. Please apply the rules from firestore.rules.");
+            console.error("CRITICAL: Referral processing failed due to missing Firestore permissions. Using secure fallback if possible.");
         } else {
             console.error("Error processing referral:", error);
         }
