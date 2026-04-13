@@ -11,6 +11,8 @@ import {
   updateProfile,
   User as FirebaseUser
 } from "firebase/auth";
+import { useReferral } from "@/hooks/useReferral";
+import { Suspense } from "react";
 
 interface User {
   uid: string;
@@ -37,76 +39,88 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { getPendingReferral, clearPendingReferral } = useReferral();
 
   useEffect(() => {
+    let profileUnsubscribe: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (profileUnsubscribe) {
+        profileUnsubscribe();
+        profileUnsubscribe = null;
+      }
+
       if (firebaseUser) {
-        // Fetch full profile from Firestore to get role
+        // Subscribe to full profile from Firestore to get role
         try {
-          const { fetchUserProfile } = await import("@/lib/db");
-          let profile = await fetchUserProfile(firebaseUser.uid);
+          const { fetchUserProfile, subscribeUserProfile } = await import("@/lib/db");
           
-          // Auto-Healing: If user exists in Auth but not Firestore, create profile
-          if (!profile) {
-            console.log("Healing missing profile for UID:", firebaseUser.uid);
-            const { adminUpdateUser, generateUniqueReferralCode } = await import("@/lib/db");
-            const generatedCode = await generateUniqueReferralCode(firebaseUser.displayName || 'Neighbor');
-            const newProfile = {
-              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Neighbor',
-              email: firebaseUser.email,
-              verified: false,
-              trustScore: 0,
-              totalReviews: 0,
-              itemsLentCount: 0,
-              itemsBorrowedCount: 0,
-              memberSince: new Date(),
-              role: (firebaseUser.email === 'admin@gmail.com' ? 'admin' : 'user') as 'admin' | 'user',
-              referralCode: generatedCode,
-              referralPoints: 0,
-              referralCount: 0
-            };
-            await adminUpdateUser(firebaseUser.uid, newProfile);
-            profile = { ...newProfile, id: firebaseUser.uid };
-          }
-
-          let role = profile?.role || 'user';
-
-          // Bootstrap Admin: Automatically promote admin@gmail.com
-          if (firebaseUser.email === 'admin@gmail.com' && role !== 'admin') {
-            try {
+          profileUnsubscribe = subscribeUserProfile(firebaseUser.uid, async (profile) => {
+            // Auto-Healing: If user exists in Auth but not Firestore, create profile
+            if (!profile) {
+              console.log("Healing missing profile for UID:", firebaseUser.uid);
               const { adminUpdateUser, generateUniqueReferralCode } = await import("@/lib/db");
-              const updates: any = { 
-                role: 'admin',
-                name: firebaseUser.displayName || 'Admin',
-                email: firebaseUser.email
+              const generatedCode = await generateUniqueReferralCode(firebaseUser.displayName || 'Neighbor');
+              const newProfile = {
+                name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Neighbor',
+                email: firebaseUser.email,
+                verified: false,
+                trustScore: 0,
+                totalReviews: 0,
+                itemsLentCount: 0,
+                itemsBorrowedCount: 0,
+                memberSince: new Date(),
+                role: (firebaseUser.email === 'admin@gmail.com' ? 'admin' : 'user') as 'admin' | 'user',
+                referralCode: generatedCode,
+                referralPoints: 0,
+                referralCount: 0
               };
-              if (!profile?.referralCode) {
-                updates.referralCode = await generateUniqueReferralCode('Admin');
-              }
-              await adminUpdateUser(firebaseUser.uid, updates);
-              role = 'admin';
-            } catch (promoteErr) {
-              console.error("Failed to bootstrap admin:", promoteErr);
+              await adminUpdateUser(firebaseUser.uid, newProfile);
+              return; // Listener will fire again with new profile
             }
-          }
 
-          // Case where profile exists but lacks referral code (Legacy Users)
-          if (profile && !profile.referralCode) {
-            const { adminUpdateUser, generateUniqueReferralCode } = await import("@/lib/db");
-            const generatedCode = await generateUniqueReferralCode(profile.name);
-            await adminUpdateUser(firebaseUser.uid, { referralCode: generatedCode });
-          }
-          
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName || profile?.name || null,
-            photoURL: firebaseUser.photoURL,
-            role: role,
-            isBlocked: profile?.isBlocked || false
+            let role = profile?.role || 'user';
+
+            // Bootstrap Admin: Automatically promote admin@gmail.com
+            if (firebaseUser.email === 'admin@gmail.com' && role !== 'admin') {
+              try {
+                const { adminUpdateUser, generateUniqueReferralCode } = await import("@/lib/db");
+                const updates: any = { 
+                  role: 'admin',
+                  name: firebaseUser.displayName || 'Admin',
+                  email: firebaseUser.email
+                };
+                if (!profile?.referralCode) {
+                  updates.referralCode = await generateUniqueReferralCode('Admin');
+                }
+                await adminUpdateUser(firebaseUser.uid, updates);
+                return; // Listener will fire again
+              } catch (promoteErr) {
+                console.error("Failed to bootstrap admin:", promoteErr);
+              }
+            }
+
+            // Case where profile exists but lacks referral code (Legacy Users)
+            if (profile && !profile.referralCode) {
+              const { adminUpdateUser, generateUniqueReferralCode } = await import("@/lib/db");
+              const generatedCode = await generateUniqueReferralCode(profile.name);
+              await adminUpdateUser(firebaseUser.uid, { referralCode: generatedCode });
+              return; // Listener will fire again
+            }
+            
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || profile?.name || null,
+              photoURL: firebaseUser.photoURL,
+              role: role,
+              isBlocked: profile?.isBlocked || false,
+              referralPoints: profile?.referralPoints || 0 // Pass along relevant stats
+            } as any);
+            setLoading(false);
           });
         } catch (err) {
-          console.error("Error fetching user profile in auth:", err);
+          console.error("Error setting up profile subscription:", err);
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
@@ -114,14 +128,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             photoURL: firebaseUser.photoURL,
             role: 'user'
           });
+          setLoading(false);
         }
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (profileUnsubscribe) profileUnsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -141,6 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, displayName: string, referralCode?: string) => {
     try {
+      const finalReferralCode = referralCode || getPendingReferral() || undefined;
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Update profile with display name
       await updateProfile(userCredential.user, {
@@ -168,8 +187,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         // Process referral if code provided
-        if (referralCode) {
-          await processReferral(userCredential.user.uid, referralCode);
+        if (finalReferralCode) {
+          await processReferral(userCredential.user.uid, finalReferralCode);
+          clearPendingReferral();
         }
       } catch (dbErr) {
         console.error("Error creating Firestore profile on signup:", dbErr);
@@ -233,7 +253,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <Suspense fallback={null}>
+        <ReferralTracker />
+      </Suspense>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+const ReferralTracker: React.FC = () => {
+  useReferral(); // This hook handles its own capture logic
+  return null;
 };
 
 export const useAuth = () => {

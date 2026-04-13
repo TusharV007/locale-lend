@@ -11,7 +11,6 @@ import { Grid3x3, List, SlidersHorizontal, Package, Search as SearchIcon, X } fr
 import { fetchItems } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Item, ItemCategory, GeoJSONPoint } from '@/types';
-import { DEFAULT_USER_LOCATION } from '@/data/mockData';
 import { RequestModal } from '@/components/RequestModal';
 import { AddItemModal } from '@/components/AddItemModal';
 import { toast } from 'sonner';
@@ -55,7 +54,7 @@ function SearchPageContent() {
         setLoading(true);
         try {
             const result = await fetchItems(50, query);
-            const location = userLocation || DEFAULT_USER_LOCATION;
+            const location = userLocation;
             const resultsWithDistance = result.items.map(item => {
                 const itemWithDistance = { ...item, distance: 0 };
                 if (location && item.location) {

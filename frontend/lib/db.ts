@@ -75,6 +75,92 @@ async function secureUpdateUserStats(targetUserId: string, updates: any, reason:
 }
 
 // ============================================
+// REAL-TIME SUBSCRIPTIONS
+// ============================================
+
+export const subscribeUserProfile = (userId: string, callback: (user: User | null) => void) => {
+    return onSnapshot(doc(db, USERS_COLLECTION, userId), (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.data();
+            callback({ id: snapshot.id, ...data, memberSince: parseDate(data.memberSince) } as User);
+        } else {
+            callback(null);
+        }
+    });
+};
+
+export const subscribeUserLendingHistory = (userId: string, callback: (history: HistoryItem[]) => void) => {
+    const q = query(
+        collection(db, REQUESTS_COLLECTION),
+        where("lenderId", "==", userId),
+        orderBy("createdAt", "desc")
+    );
+
+    return onSnapshot(q, async (snapshot) => {
+        const historyItems: HistoryItem[] = snapshot.docs.map(d => {
+            const data = d.data();
+            return {
+                requestId: d.id,
+                ...data,
+                createdAt: parseDate(data.createdAt)
+            } as any;
+        });
+        callback(historyItems);
+    });
+};
+
+export const subscribeUserBorrowingHistory = (userId: string, callback: (history: HistoryItem[]) => void) => {
+    const q = query(
+        collection(db, REQUESTS_COLLECTION),
+        where("borrowerId", "==", userId),
+        orderBy("createdAt", "desc")
+    );
+
+    return onSnapshot(q, async (snapshot) => {
+        const historyItems: HistoryItem[] = snapshot.docs.map(d => {
+            const data = d.data();
+            return {
+                requestId: d.id,
+                ...data,
+                createdAt: parseDate(data.createdAt)
+            } as any;
+        });
+        callback(historyItems);
+    });
+};
+
+export const subscribeNearbyItems = (limitCount = 50, callback: (items: Item[]) => void) => {
+    const q = query(
+        collection(db, ITEMS_COLLECTION),
+        orderBy("createdAt", "desc"),
+        limit(limitCount)
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const items = snapshot.docs.map(d => {
+            const data = d.data();
+            return { id: d.id, ...data, createdAt: parseDate(data.createdAt) } as Item;
+        });
+        callback(items);
+    });
+};
+
+export const subscribeAllUsers = (callback: (users: User[]) => void) => {
+    const q = query(
+        collection(db, USERS_COLLECTION),
+        orderBy("name", "asc")
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const users = snapshot.docs.map(d => {
+            const data = d.data();
+            return { id: d.id, ...data, memberSince: parseDate(data.memberSince) } as User;
+        });
+        callback(users);
+    });
+};
+
+// ============================================
 // ITEM FUNCTIONS
 // ============================================
 
@@ -1002,7 +1088,7 @@ export const fetchUserReviews = async (userId: string): Promise<Review[]> => {
             return snap.docs.map(d => ({
                 id: d.id, ...d.data(), createdAt: parseDate(d.data().createdAt)
             } as Review));
-        } catch (e) {
+        } catch {
             return [];
         }
     }

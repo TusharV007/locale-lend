@@ -18,9 +18,6 @@ const NeighborhoodMap = dynamic(() => import('@/components/NeighborhoodMap').the
 import { RequestModal } from '@/components/RequestModal';
 import { LocationRequiredModal } from '@/components/LocationRequiredModal';
 import { useStore } from '@/store/useStore';
-import { mockUsers, DEFAULT_USER_LOCATION } from '@/data/mockData';
-import { fetchItems } from '@/lib/db';
-import type { Item, ItemCategory } from '@/types';
 import { calculateDistance } from '@/lib/utils';
 import { useLocation } from '@/hooks/useLocation';
 
@@ -29,7 +26,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import LandingPage from '@/app/landing/page';
 
-const RADIUS_LIMIT_METERS = 50000; // 50km
+const RADIUS_LIMIT_METERS = 500000; // 500km
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
@@ -58,14 +55,15 @@ export default function Home() {
   const { userLocation: actualLocation, requestUserLocation } = useLocation();
 
   const fetchItemsData = async (
-    location = userLocation || DEFAULT_USER_LOCATION,
+    location: GeoJSONPoint | null = userLocation,
     reset = true,
-    query = ''
+    queryText = ''
   ) => {
     try {
       setLoadingMore(true);
+      const { fetchItems } = await import('@/lib/db');
       const lastDoc = reset ? null : lastDocRef.current;
-      const result = await fetchItems(12, query, lastDoc);
+      const result = await fetchItems(12, queryText, lastDoc);
 
       const realItemsWithDistance = result.items.map(item => {
         const itemWithDistance = { ...item, distance: 0 };
@@ -78,7 +76,7 @@ export default function Home() {
       if (reset) {
         setNearbyItems(realItemsWithDistance);
       } else {
-        setNearbyItems([...nearbyItems, ...realItemsWithDistance]);
+        setNearbyItems(prev => [...prev, ...realItemsWithDistance]);
       }
 
       lastDocRef.current = result.lastDoc;
@@ -92,7 +90,7 @@ export default function Home() {
   };
 
   const handleLoadMore = () => {
-    fetchItemsData(userLocation || DEFAULT_USER_LOCATION, false, searchQuery);
+    fetchItemsData(userLocation, false, searchQuery);
   };
 
 
@@ -101,40 +99,48 @@ export default function Home() {
     setShowLocationModal(false);
   };
 
-  // Initialize with data and location
+  // Initialize with real-time data and location
   useEffect(() => {
     if (!user) return;
-    setCurrentUser(mockUsers[0]);
+    
+    let itemsUnsubscribe: (() => void) | null = null;
 
-    // Fetch map items (all items for map view)
-    const fetchMapItemsData = async () => {
+    // Fetch map items (all items for map view) with real-time subscription
+    const setupItemsSubscription = async () => {
       try {
-        const result = await fetchItems(100);
-        const location = userLocation || DEFAULT_USER_LOCATION;
+        const { subscribeNearbyItems } = await import('@/lib/db');
         
-        const filteredMapItems = result.items.map(item => {
-          const itemWithDistance = { ...item, distance: 0 };
-          if (location && item.location) {
-            itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
-          }
-          return itemWithDistance;
-        }).filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS);
+        itemsUnsubscribe = subscribeNearbyItems(100, (items) => {
+           const location = userLocation;
+        
+           const filteredMapItems = items.map(item => {
+             const itemWithDistance = { ...item, distance: 0 };
+             if (location && item.location) {
+               itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
+             }
+             return itemWithDistance;
+           }).filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS);
 
-        setMapItems(filteredMapItems);
+           setMapItems(filteredMapItems);
+        });
       } catch (error) {
-        console.error('Failed to fetch map items:', error);
+        console.error('Failed to setup items subscription:', error);
       }
     };
-    fetchMapItemsData();
+    setupItemsSubscription();
 
     // Request Location
     requestUserLocation(true); // Silent request
+
+    return () => {
+        if (itemsUnsubscribe) itemsUnsubscribe();
+    }
   }, [user, selectedCategory, requestUserLocation, userLocation]);
 
   useEffect(() => {
     if (!user) return;
     const timer = setTimeout(() => {
-      fetchItemsData(userLocation || DEFAULT_USER_LOCATION, true, searchQuery);
+      fetchItemsData(userLocation, true, searchQuery);
     }, 500);
     return () => clearTimeout(timer);
   }, [user, searchQuery, selectedCategory, userLocation]);
@@ -170,25 +176,8 @@ export default function Home() {
   };
 
   const handleAddItemSuccess = () => {
-    fetchItemsData(userLocation || DEFAULT_USER_LOCATION, true);
-    // Also refresh map items
-    const fetchMapItemsData = async () => {
-      try {
-        const result = await fetchItems(100);
-        const location = userLocation || DEFAULT_USER_LOCATION;
-        const filteredMapItems = result.items.map(item => {
-          const itemWithDistance = { ...item, distance: 0 };
-          if (location && item.location) {
-            itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
-          }
-          return itemWithDistance;
-        }).filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS);
-        setMapItems(filteredMapItems);
-      } catch (error) {
-        console.error('Failed to fetch map items:', error);
-      }
-    };
-    fetchMapItemsData();
+    fetchItemsData(userLocation, true);
+    // Map items will refresh automatically via subscription
   };
 
   // Sort and filter items for display (exluding unavailable items)

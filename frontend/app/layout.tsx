@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 import { Providers } from "./providers";
 import { TopProgressBar } from "@/components/TopProgressBar";
-import { Toaster } from "sonner";
+
 
 export const metadata: Metadata = {
   title: "Local Share",
@@ -33,7 +33,6 @@ export default function RootLayout({
         <Providers>
           <TopProgressBar />
           {children}
-          <Toaster position="top-center" expand={true} richColors />
         </Providers>
       </body>
     </html>

@@ -26,18 +26,121 @@ import {
     fetchUserItems,
     updateItemStatus,
     deleteItem,
-    fetchUserLendingHistory,
-    fetchUserBorrowingHistory,
     checkReviewExists,
     updateRequestStatus,
+    subscribeUserLendingHistory,
+    subscribeUserBorrowingHistory,
+    subscribeUserProfile,
     type HistoryItem,
     type PaginatedUserItems,
 } from '@/lib/db';
 import { toast } from 'sonner';
 import { ReferralCard } from '@/components/ReferralCard';
 import { User as DBUser } from '@/types';
-import { fetchUserProfile, fetchReferralPointsHistory } from '@/lib/db';
+import { fetchReferralPointsHistory } from '@/lib/db';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+
+const StatusIcon = ({ status }: { status: HistoryItem['status'] }) => {
+    if (status === 'accepted' || status === 'completed') return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+    if (status === 'rejected') return <XCircle className="w-4 h-4 text-red-500" />;
+    return <Clock className="w-4 h-4 text-yellow-500" />;
+};
+
+const EmptyState = ({ message }: { message: string }) => (
+    <div className="text-center py-12 text-muted-foreground bg-secondary/30 rounded-xl border border-dashed border-border">
+        <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+        <p>{message}</p>
+    </div>
+);
+
+const HistoryCard = ({ 
+    item, 
+    role, 
+    reviewedTransactions, 
+    setRevieweeId, 
+    setReviewTransaction, 
+    setIsReviewModalOpen,
+    handleCompleteRequest 
+}: { 
+    item: HistoryItem; 
+    role: 'lender' | 'borrower';
+    reviewedTransactions: Set<string>;
+    setRevieweeId: (id: string) => void;
+    setReviewTransaction: (item: HistoryItem) => void;
+    setIsReviewModalOpen: (open: boolean) => void;
+    handleCompleteRequest: (id: string) => void;
+}) => {
+    return (
+    <div className="bg-card border rounded-xl p-4 flex gap-4 items-center shadow-sm hover:shadow-md transition-shadow">
+        {item.itemImage ? (
+            <img src={item.itemImage} alt={item.itemTitle} className="w-16 h-16 object-cover rounded-lg shrink-0" />
+        ) : (
+            <div className="w-16 h-16 bg-secondary rounded-lg flex items-center justify-center shrink-0">
+                <Package className="w-6 h-6 text-muted-foreground" />
+            </div>
+        )}
+        <div className="flex-1 min-w-0">
+            <p className="font-semibold text-foreground truncate">{item.itemTitle}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+                {role === 'lender' ? `Borrowed by: ` : `Lent by: `}
+                <span className="text-foreground font-medium">{item.otherPartyName}</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+                {item.createdAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+        </div>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+            <div className="flex items-center gap-1">
+                <StatusIcon status={item.status} />
+                <Badge variant={item.status === 'accepted' || item.status === 'completed' ? 'default' : item.status === 'rejected' ? 'destructive' : 'secondary'} className="capitalize text-xs">
+                    {item.status}
+                </Badge>
+            </div>
+            {item.rentalPricePerDay !== undefined && item.rentalPricePerDay > 0 && (
+                <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                    <IndianRupee className="w-3 h-3" />
+                    {item.rentalPricePerDay}/day
+                </div>
+            )}
+            {item.paymentStatus === 'paid' && (
+                <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Paid</Badge>
+            )}
+            
+            {/* Actions */}
+            <div className="flex gap-2 mt-2">
+                {item.status === 'accepted' && role === 'lender' && (
+                    <button 
+                        onClick={() => handleCompleteRequest(item.requestId)}
+                        className="text-xs bg-primary/10 text-primary hover:bg-primary/20 px-2 py-1 rounded transition-colors font-medium"
+                    >
+                        Mark Completed
+                    </button>
+                )}
+                
+                {item.status === 'completed' && !reviewedTransactions.has(item.requestId) && (
+                    <button 
+                        onClick={async () => {
+                            setRevieweeId(item.otherPartyId);
+                            setReviewTransaction(item);
+                            setIsReviewModalOpen(true);
+                        }}
+                        className="text-xs bg-accent/10 text-accent hover:bg-accent/20 px-2 py-1 rounded transition-colors font-medium flex items-center gap-1"
+                    >
+                        <Star className="w-3 h-3 fill-accent/50" />
+                        Leave Review
+                    </button>
+                )}
+                
+                {item.status === 'completed' && reviewedTransactions.has(item.requestId) && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Reviewed
+                    </span>
+                )}
+            </div>
+        </div>
+    </div>
+    );
+};
 
 function ProfilePageContent() {
     const { user, loading: authLoading } = useAuth();
@@ -89,40 +192,62 @@ function ProfilePageContent() {
 
     useEffect(() => {
         if (!user) return;
-        const loadAll = async () => {
-            setLoading(true);
+        setLoading(true);
+
+        let lendingUnsubscribe: (() => void) | null = null;
+        let borrowingUnsubscribe: (() => void) | null = null;
+        let profileUnsubscribe: (() => void) | null = null;
+
+        const setupSubscriptions = async () => {
             try {
-                const [lendResult, borrowResult] = await Promise.all([
-                    fetchUserLendingHistory(user.uid),
-                    fetchUserBorrowingHistory(user.uid),
-                ]);
-                setLendingHistory(lendResult);
-                setBorrowingHistory(borrowResult);
-                
-                // Check which completed transactions are already reviewed by this user
-                const reviewedSet = new Set<string>();
-                await Promise.all(
-                    [...lendResult, ...borrowResult]
-                        .filter(tx => tx.status === 'completed')
-                        .map(async (tx) => {
-                            const exists = await checkReviewExists(tx.requestId, user.uid);
-                            if (exists) reviewedSet.add(tx.requestId);
-                        })
-                );
-                setReviewedTransactions(reviewedSet);
-                
-                // Fetch full profile for referral stats
-                const profile = await fetchUserProfile(user.uid);
-                setFullProfile(profile);
- 
+                // Subscribe to profile for points/referral stats
+                profileUnsubscribe = subscribeUserProfile(user.uid, (profile) => {
+                    setFullProfile(profile as any);
+                });
+
+                // Subscribe to lending history
+                lendingUnsubscribe = subscribeUserLendingHistory(user.uid, async (history) => {
+                    setLendingHistory(history);
+                    // Refresh reviewed set when history changes
+                    await updateReviewedSet([...history, ...borrowingHistory]);
+                });
+
+                // Subscribe to borrowing history
+                borrowingUnsubscribe = subscribeUserBorrowingHistory(user.uid, async (history) => {
+                    setBorrowingHistory(history);
+                    // Refresh reviewed set when history changes
+                    await updateReviewedSet([...lendingHistory, ...history]);
+                });
+
                 await loadListings(true);
             } catch (err) {
-                console.error(err);
+                console.error("Failed to setup profile subscriptions:", err);
             } finally {
                 setLoading(false);
             }
         };
-        loadAll();
+
+        const updateReviewedSet = async (allHistory: HistoryItem[]) => {
+            if (!user) return;
+            const completedItems = allHistory.filter(tx => tx.status === 'completed');
+            const reviewedSet = new Set<string>();
+            
+            await Promise.all(
+                completedItems.map(async (tx) => {
+                    const exists = await checkReviewExists(tx.requestId, user.uid);
+                    if (exists) reviewedSet.add(tx.requestId);
+                })
+            );
+            setReviewedTransactions(reviewedSet);
+        };
+
+        setupSubscriptions();
+
+        return () => {
+            if (lendingUnsubscribe) lendingUnsubscribe();
+            if (borrowingUnsubscribe) borrowingUnsubscribe();
+            if (profileUnsubscribe) profileUnsubscribe();
+        };
     }, [user]);
 
     const handleEditItem = (item: Item) => {
@@ -141,12 +266,6 @@ function ProfilePageContent() {
         toast.success(editingItem ? 'Item updated!' : 'Item listed successfully!');
     };
 
-    const StatusIcon = ({ status }: { status: HistoryItem['status'] }) => {
-        if (status === 'accepted' || status === 'completed') return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-        if (status === 'rejected') return <XCircle className="w-4 h-4 text-red-500" />;
-        return <Clock className="w-4 h-4 text-yellow-500" />;
-    };
-
     const handleCompleteRequest = async (requestId: string) => {
         await performAction(
             () => updateRequestStatus(requestId, 'completed'),
@@ -160,92 +279,7 @@ function ProfilePageContent() {
         );
     };
 
-    const HistoryCard = ({ item, role }: { item: HistoryItem; role: 'lender' | 'borrower' }) => {
-        // Need to determine the reviewee ID. 
-        // If I am the lender, the reviewee is the borrower. The `HistoryItem` currently lacks the raw ID of the other party directly.
-        // Wait, HistoryCard doesn't have the other party's ID cleanly exposed without a fetch.
-        // Let's assume we handle it by fetching or using `message`? The DB functions check requests but let's see.
-        // Actually, we can fetch the request document if needed, or pass it. 
-        // For simplicity, we can initiate the review and lookup the IDs if missing.
 
-        return (
-        <div className="bg-card border rounded-xl p-4 flex gap-4 items-center shadow-sm hover:shadow-md transition-shadow">
-            {item.itemImage ? (
-                <img src={item.itemImage} alt={item.itemTitle} className="w-16 h-16 object-cover rounded-lg shrink-0" />
-            ) : (
-                <div className="w-16 h-16 bg-secondary rounded-lg flex items-center justify-center shrink-0">
-                    <Package className="w-6 h-6 text-muted-foreground" />
-                </div>
-            )}
-            <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground truncate">{item.itemTitle}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                    {role === 'lender' ? `Borrowed by: ` : `Lent by: `}
-                    <span className="text-foreground font-medium">{item.otherPartyName}</span>
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                    {item.createdAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </p>
-            </div>
-            <div className="flex flex-col items-end gap-2 shrink-0">
-                <div className="flex items-center gap-1">
-                    <StatusIcon status={item.status} />
-                    <Badge variant={item.status === 'accepted' || item.status === 'completed' ? 'default' : item.status === 'rejected' ? 'destructive' : 'secondary'} className="capitalize text-xs">
-                        {item.status}
-                    </Badge>
-                </div>
-                {item.rentalPricePerDay !== undefined && item.rentalPricePerDay > 0 && (
-                    <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                        <IndianRupee className="w-3 h-3" />
-                        {item.rentalPricePerDay}/day
-                    </div>
-                )}
-                {item.paymentStatus === 'paid' && (
-                    <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Paid</Badge>
-                )}
-                
-                {/* Actions */}
-                <div className="flex gap-2 mt-2">
-                    {item.status === 'accepted' && role === 'lender' && (
-                        <button 
-                            onClick={() => handleCompleteRequest(item.requestId)}
-                            className="text-xs bg-primary/10 text-primary hover:bg-primary/20 px-2 py-1 rounded transition-colors font-medium"
-                        >
-                            Mark Completed
-                        </button>
-                    )}
-                    
-                    {item.status === 'completed' && !reviewedTransactions.has(item.requestId) && (
-                        <button 
-                            onClick={async () => {
-                                setRevieweeId(item.otherPartyId);
-                                setReviewTransaction(item);
-                                setIsReviewModalOpen(true);
-                            }}
-                            className="text-xs bg-accent/10 text-accent hover:bg-accent/20 px-2 py-1 rounded transition-colors font-medium flex items-center gap-1"
-                        >
-                            <Star className="w-3 h-3 fill-accent/50" />
-                            Leave Review
-                        </button>
-                    )}
-                    
-                    {item.status === 'completed' && reviewedTransactions.has(item.requestId) && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Reviewed
-                        </span>
-                    )}
-                </div>
-            </div>
-        </div>
-        );
-    };
-
-    const EmptyState = ({ message }: { message: string }) => (
-        <div className="text-center py-12 text-muted-foreground bg-secondary/30 rounded-xl border border-dashed border-border">
-            <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>{message}</p>
-        </div>
-    );
 
     if (authLoading || loading) {
         return (
@@ -344,7 +378,16 @@ function ProfilePageContent() {
                         {lendingHistory.length > 0 ? (
                             <div className="space-y-3">
                                 {lendingHistory.map(item => (
-                                    <HistoryCard key={item.requestId} item={item} role="lender" />
+                                    <HistoryCard 
+                                        key={item.requestId} 
+                                        item={item} 
+                                        role="lender" 
+                                        reviewedTransactions={reviewedTransactions}
+                                        setRevieweeId={setRevieweeId}
+                                        setReviewTransaction={setReviewTransaction}
+                                        setIsReviewModalOpen={setIsReviewModalOpen}
+                                        handleCompleteRequest={handleCompleteRequest}
+                                    />
                                 ))}
                             </div>
                         ) : <EmptyState message="No lending history yet." />}
@@ -358,7 +401,16 @@ function ProfilePageContent() {
                         {borrowingHistory.length > 0 ? (
                             <div className="space-y-3">
                                 {borrowingHistory.map(item => (
-                                    <HistoryCard key={item.requestId} item={item} role="borrower" />
+                                    <HistoryCard 
+                                        key={item.requestId} 
+                                        item={item} 
+                                        role="borrower" 
+                                        reviewedTransactions={reviewedTransactions}
+                                        setRevieweeId={setRevieweeId}
+                                        setReviewTransaction={setReviewTransaction}
+                                        setIsReviewModalOpen={setIsReviewModalOpen}
+                                        handleCompleteRequest={handleCompleteRequest}
+                                    />
                                 ))}
                             </div>
                         ) : <EmptyState message="No borrowing history yet." />}

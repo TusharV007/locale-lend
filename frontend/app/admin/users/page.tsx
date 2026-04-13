@@ -3,9 +3,9 @@
 import React, { useEffect, useState } from "react";
 import { 
   fetchUserProfile, 
-  fetchAllUsers, 
   adminUpdateUser,
-  adminDeleteUser 
+  adminDeleteUser,
+  subscribeAllUsers 
 } from "@/lib/db";
 import { User } from "@/types";
 import { ActionConfirmModal } from "@/components/ActionConfirmModal";
@@ -26,20 +26,24 @@ export default function UserManagement() {
   const { performAction } = useAsyncAction();
 
   useEffect(() => {
-    loadUsers();
-  }, []);
-
-  async function loadUsers() {
+    let unsubscribe: (() => void) | null = null;
+    
+    setLoading(true);
     try {
-      setLoading(true);
-      const allUsers = await fetchAllUsers();
-      setUsers(allUsers);
+      unsubscribe = subscribeAllUsers((allUsers) => {
+        setUsers(allUsers);
+        setLoading(false);
+      });
     } catch (err) {
+      console.error("Failed to setup user subscription:", err);
       toast.error("Failed to load users");
-    } finally {
       setLoading(false);
     }
-  }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   const handleToggleVerify = async (userId: string, currentStatus: boolean) => {
     try {
@@ -93,7 +97,7 @@ export default function UserManagement() {
       },
       {
         successMessage: "User synchronization complete!",
-        onSuccess: () => loadUsers(),
+        onSuccess: () => {}, // Handled by subscription
         onError: () => setIsSyncing(false),
       }
     );
@@ -222,7 +226,7 @@ export default function UserManagement() {
                       </span>
                       {u.id.startsWith('neighbor-seed-') ? (
                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20 w-fit">
-                            <Database size={8} /> System Mock
+                            <Database size={8} /> Seeded Data
                          </span>
                       ) : (
                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20 w-fit">

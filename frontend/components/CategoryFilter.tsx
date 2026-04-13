@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Wrench, Laptop, ChefHat, Tent, BookOpen, Bike, Hammer, Sprout, PartyPopper, Gamepad2, Shirt, Music, Dumbbell, Home } from 'lucide-react';
+import { categoryConfig } from '@/lib/constants';
 import type { ItemCategory } from '@/types';
 import { cn } from '@/lib/utils';
 
