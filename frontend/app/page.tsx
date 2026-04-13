@@ -113,13 +113,20 @@ export default function Home() {
         itemsUnsubscribe = subscribeNearbyItems(100, (items) => {
            const location = userLocation;
         
-           const filteredMapItems = items.map(item => {
-             const itemWithDistance = { ...item, distance: 0 };
-             if (location && item.location) {
-               itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
-             }
-             return itemWithDistance;
-           }).filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS);
+           const filteredMapItems = items
+             .map(item => {
+               const itemWithDistance = { ...item, distance: 0 };
+               if (location && item.location) {
+                 itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
+               }
+               return itemWithDistance;
+             })
+             .filter(item => {
+               const isNearby = (item.distance || 0) <= RADIUS_LIMIT_METERS;
+               const isAvailable = item.status === 'available' || !item.status;
+               const matchesCategory = !selectedCategory || item.category === selectedCategory;
+               return isNearby && isAvailable && matchesCategory;
+             });
 
            setMapItems(filteredMapItems);
         });
@@ -184,6 +191,7 @@ export default function Home() {
   const sortedItems = [...nearbyItems]
     .filter(item => item.status === 'available' || !item.status)
     .filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS)
+    .filter(item => !selectedCategory || item.category === selectedCategory)
     .sort((a, b) => {
     // Priority 1: Available items first
     const statusA = a.status || 'available';
