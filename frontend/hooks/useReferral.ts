@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export const useReferral = () => {
+// Component responsible ONLY for capturing the referral code from the URL
+export function ReferralCapturer() {
     const searchParams = useSearchParams();
     
     useEffect(() => {
@@ -14,6 +15,11 @@ export const useReferral = () => {
         }
     }, [searchParams]);
 
+    return null;
+}
+
+// Hook for utility functions that DON'T depend on search params
+export const useReferral = () => {
     const getPendingReferral = () => {
         if (typeof window === 'undefined') return null;
         return sessionStorage.getItem('pending_referral');

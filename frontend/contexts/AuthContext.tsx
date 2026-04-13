@@ -11,7 +11,7 @@ import {
   updateProfile,
   User as FirebaseUser
 } from "firebase/auth";
-import { useReferral } from "@/hooks/useReferral";
+import { useReferral, ReferralCapturer } from "@/hooks/useReferral";
 import { Suspense } from "react";
 
 interface User {
@@ -256,17 +256,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={value}>
       <Suspense fallback={null}>
-        <ReferralTracker />
+        <ReferralCapturer />
       </Suspense>
       {children}
     </AuthContext.Provider>
   );
 };
 
-const ReferralTracker: React.FC = () => {
-  useReferral(); // This hook handles its own capture logic
-  return null;
-};
+// ReferralTracker logic moved to ReferralCapturer in hooks/useReferral.ts
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
