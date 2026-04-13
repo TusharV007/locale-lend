@@ -24,11 +24,9 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       
-      // Allow users to update their own docs, OR admins to update any doc,
-      // OR allow cross-user updates for points and scores.
-      allow update: if isOwner(userId) || isAdmin() || (isSignedIn() && 
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['referralPoints', 'referralCount', 'totalReviews', 'trustScore', 'itemsLentCount', 'itemsBorrowedCount']));
+      // Allow users to update their own docs, OR admins to update any doc.
+      // Cross-user updates (stats/points) are now handled via a secure API route.
+      allow update: if isOwner(userId) || isAdmin();
       
       allow delete: if isAdmin();
     }

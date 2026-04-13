@@ -50,7 +50,6 @@ function ProfilePageContent() {
     const [editingItem, setEditingItem] = useState<Item | null>(null);
     const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
     const [fullProfile, setFullProfile] = useState<DBUser | null>(null);
-    const [pointsHistory, setPointsHistory] = useState<any[]>([]);
     
     // Review Modal State
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -112,14 +111,10 @@ function ProfilePageContent() {
                 );
                 setReviewedTransactions(reviewedSet);
                 
-                // Fetch full profile for referral points and referral code
+                // Fetch full profile for referral stats
                 const profile = await fetchUserProfile(user.uid);
                 setFullProfile(profile);
  
-                // Fetch points history
-                const history = await fetchReferralPointsHistory(user.uid);
-                setPointsHistory(history);
-                
                 await loadListings(true);
             } catch (err) {
                 console.error(err);
@@ -283,15 +278,6 @@ function ProfilePageContent() {
                         <TabsTrigger value="listings">My Listings ({listings.length})</TabsTrigger>
                         <TabsTrigger value="lends">Lent Out ({lendingHistory.length})</TabsTrigger>
                         <TabsTrigger value="borrows">Borrowed ({borrowingHistory.length})</TabsTrigger>
-                        <TabsTrigger value="rewards" className="relative">
-                            Rewards
-                            {fullProfile?.referralPoints && fullProfile.referralPoints > 0 && (
-                                <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-4 w-4 bg-primary text-[10px] items-center justify-center text-white">!</span>
-                                </span>
-                            )}
-                        </TabsTrigger>
                     </TabsList>
 
                     {/* My Listings */}
@@ -378,56 +364,6 @@ function ProfilePageContent() {
                         ) : <EmptyState message="No borrowing history yet." />}
                     </TabsContent>
 
-                    {/* Rewards Tab */}
-                    <TabsContent value="rewards" className="space-y-8">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-2xl font-bold flex items-center gap-2">
-                                <Gift className="w-6 h-6 text-primary" />
-                                Community Rewards
-                            </h2>
-                        </div>
-                        
-                        {fullProfile && (
-                            <ReferralCard 
-                                referralCode={fullProfile.referralCode || 'NOTSET'} 
-                                referralCount={fullProfile.referralCount || 0}
-                                referralPoints={fullProfile.referralPoints || 0}
-                            />
-                        )}
-
-                        {/* Points History Log */}
-                        <div className="mt-12">
-                            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                <History className="w-5 h-5 text-muted-foreground" />
-                                Recent Activity
-                            </h3>
-                            <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
-                                {pointsHistory.length > 0 ? (
-                                    <div className="divide-y">
-                                        {pointsHistory.map((item) => (
-                                            <div key={item.id} className="p-4 flex items-center justify-between hover:bg-secondary/20 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-full ${item.amount > 0 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
-                                                        {item.amount > 0 ? '+' : ''}{item.amount}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-medium">{item.reason}</p>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {item.timestamp.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="p-12 text-center text-muted-foreground">
-                                        <p>No activity points earned yet. Start sharing to earn rewards!</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </TabsContent>
                 </Tabs>
             </div>
 

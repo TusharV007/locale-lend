@@ -1,4 +1,4 @@
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import {
     collection,
     addDoc,
@@ -41,6 +41,36 @@ function parseDate(val: any): Date {
         return new Date(val);
     } catch (e) {
         return new Date();
+    }
+}
+
+/**
+ * Securely update user stats via API route (Trust Score, Points, etc.)
+ * This circumvents strict Firestore rules while maintaining security.
+ */
+async function secureUpdateUserStats(targetUserId: string, updates: any, reason: string) {
+    try {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) throw new Error("Authentication required for stats update");
+
+        const response = await fetch('/api/users/update-stats', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ targetUserId, updates, reason })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update user stats');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error(`Secure update failed (${reason}):`, error);
+        throw error;
     }
 }
 
@@ -88,28 +118,32 @@ export const updateItemStatus = async (itemId: string, status: 'available' | 'le
 };
 
 /**
- * Cascade delete an item along with all related requests and messages
+ * Cascade delete an item along with all related requests and messages using a Batch
  */
 export const deleteItem = async (itemId: string, userId: string) => {
     try {
-        console.log(`Starting cascade delete for item: ${itemId}`);
+        console.log(`Starting atomic cascade delete for item: ${itemId}`);
         const requestsQuery = query(collection(db, REQUESTS_COLLECTION), where("itemId", "==", itemId), where("lenderId", "==", userId));
         const requestsSnapshot = await getDocs(requestsQuery);
 
-        const deletePromises: Promise<void>[] = [];
+        const batch = writeBatch(db);
+        
         for (const requestDoc of requestsSnapshot.docs) {
             const messagesRef = collection(db, REQUESTS_COLLECTION, requestDoc.id, MESSAGES_SUBCOLLECTION);
             const messagesSnapshot = await getDocs(messagesRef);
-            messagesSnapshot.docs.forEach(msgDoc => { deletePromises.push(deleteDoc(msgDoc.ref)); });
-            deletePromises.push(deleteDoc(requestDoc.ref));
+            messagesSnapshot.docs.forEach(msgDoc => {
+                batch.delete(msgDoc.ref);
+            });
+            batch.delete(requestDoc.ref);
         }
-        await Promise.all(deletePromises);
 
         const itemRef = doc(db, ITEMS_COLLECTION, itemId);
-        await deleteDoc(itemRef);
-        console.log(`Successfully cascade deleted item: ${itemId}`);
+        batch.delete(itemRef);
+
+        await batch.commit();
+        console.log(`Successfully atomically deleted item: ${itemId}`);
     } catch (error) {
-        console.error("Error in cascade delete:", error);
+        console.error("Error in atomic cascade delete:", error);
         throw error;
     }
 };
@@ -391,11 +425,16 @@ export const updateRequestStatus = async (requestId: string, status: 'accepted' 
                     console.warn("Status update email failed:", emailErr);
                 }
             } else if (status === 'completed') {
-                // Reward beide users for successful transaction
-                // Reward Lender
-                await updateReferralPoints(requestData.lenderId, 20, "Transaction completed (Lender)");
-                // Reward Borrower
-                await updateReferralPoints(requestData.borrowerId, 10, "Transaction completed (Borrower)");
+                // Reward both users via secure API to avoid rule restrictions
+                await secureUpdateUserStats(requestData.lenderId, {
+                    referralPoints: (requestData.lenderPoints || 0) + 20,
+                    itemsLentCount: (requestData.lenderLents || 0) + 1
+                }, "Transaction completed (Lender)");
+                
+                await secureUpdateUserStats(requestData.borrowerId, {
+                    referralPoints: (requestData.borrowerPoints || 0) + 10,
+                    itemsBorrowedCount: (requestData.borrowerBorrows || 0) + 1
+                }, "Transaction completed (Borrower)");
             }
         }
     } catch (error) {
@@ -644,7 +683,7 @@ export interface NotificationData {
     createdAt: Date;
 }
 
-export const createNotification = async (data: Omit<NotificationData, 'id' | 'read' | 'createdAt'>) => {
+export const createNotification = async (data: Omit<NotificationData, 'id' | 'read' | 'createdAt'>, retryCount = 0) => {
     try {
         await addDoc(collection(db, NOTIFICATIONS_COLLECTION), {
             ...data,
@@ -652,8 +691,11 @@ export const createNotification = async (data: Omit<NotificationData, 'id' | 're
             createdAt: Timestamp.now()
         });
     } catch (error) {
-        console.error("Error creating notification:", error);
-        // Don't throw — notifications are non-critical
+        console.error(`Error creating notification (attempt ${retryCount + 1}):`, error);
+        // Retry logic for non-critical notifications if they fail due to transient network issues
+        if (retryCount < 2) {
+            setTimeout(() => createNotification(data, retryCount + 1), 2000);
+        }
     }
 };
 
@@ -779,21 +821,17 @@ export const createReview = async (review: Omit<Review, "id" | "createdAt">) => 
                     accountAgeDays: Math.floor((new Date().getTime() - parseDate(userData.memberSince).getTime()) / (1000 * 3600 * 24)) || 0,
                 });
 
-                // 4. Update the user record
-                await updateDoc(userRef, {
+                // 4. Update the user record via Secure API
+                await secureUpdateUserStats(review.revieweeId, {
                     totalReviews: newTotalReviews,
                     trustScore: trustResult.score,
-                });
+                }, `Review from ${review.reviewerName}`);
 
                 // Reward reviewee/reviewer
                 await updateReferralPoints(review.reviewerId, 5, `Left a review for ${review.itemTitle}`);
             }
         } catch (error: any) {
-            if (error.code === 'permission-denied') {
-                console.warn("Permission denied while updating user stats. Ensure Firestore rules allow cross-user updates to trustScore/totalReviews.");
-            } else {
-                console.error("Error updating user stats after review:", error);
-            }
+            console.error("Error updating user stats after review via API:", error);
         }
 
         // Notify reviewee
@@ -1080,6 +1118,9 @@ export const generateUniqueReferralCode = async (name: string): Promise<string> 
 /**
  * Update user Referral Points and log history
  */
+/**
+ * Update user Referral Points and log history via secure API
+ */
 export const updateReferralPoints = async (userId: string, amount: number, reason: string) => {
     try {
         const userRef = doc(db, USERS_COLLECTION, userId);
@@ -1087,11 +1128,14 @@ export const updateReferralPoints = async (userId: string, amount: number, reaso
         
         if (userSnap.exists()) {
             const currentPoints = userSnap.data().referralPoints || 0;
-            await updateDoc(userRef, {
-                referralPoints: currentPoints + amount
-            });
             
-            // Log history
+            // Use Secure API for points update to avoid rule restrictions
+            await secureUpdateUserStats(userId, {
+                referralPoints: currentPoints + amount
+            }, reason);
+            
+            // Log history (Client can still write to history if allowed, or we move this too. 
+            // In rules history is allow create: if isSignedIn, so this is fine.)
             await addDoc(collection(db, REFERRAL_POINTS_COLLECTION), {
                 userId,
                 amount,
@@ -1100,11 +1144,7 @@ export const updateReferralPoints = async (userId: string, amount: number, reaso
             });
         }
     } catch (error: any) {
-        if (error.code === 'permission-denied') {
-            console.warn(`Permission denied updating points for ${userId}. Help: Check your firestore.rules for referral_points_history and user updates.`);
-        } else {
-            console.error("Error updating points:", error);
-        }
+        console.error("Error updating points via secure API:", error);
     }
 };
 

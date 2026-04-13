@@ -120,7 +120,7 @@ export function Navbar({ className, onAddItemClick, onSearch }: NavbarProps) {
                 <DropdownMenuItem onClick={() => router.push('/profile')}>
                   <Package className="mr-2 h-4 w-4" /> My Items
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/profile?tab=rewards')}>
+                <DropdownMenuItem onClick={() => router.push('/rewards')}>
                   <Gift className="mr-2 h-4 w-4 text-primary" /> Community Rewards
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push('/messages')}>

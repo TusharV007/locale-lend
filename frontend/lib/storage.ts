@@ -1,7 +1,8 @@
 export const uploadImage = async (file: File | Blob, path: string): Promise<string> => {
     try {
         const formData = new FormData();
-        formData.append('file', file);
+        // Always provide a filename when appending a Blob/File to ensure server compatibility
+        formData.append('file', file, 'upload.jpg');
         formData.append('path', path);
 
         const response = await fetch('/api/upload/s3', {

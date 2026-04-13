@@ -134,14 +134,21 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
 
         try {
             const toastId = toast.loading('Processing image...');
-            const compressedBase64 = await compressImage(file);
+            // Convert base64 to Blob manually for better cross-browser support
+            const [header, base64Data] = compressedBase64.split(',');
+            const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+            const byteString = atob(base64Data);
+            const arrayBuffer = new ArrayBuffer(byteString.length);
+            const intArray = new Uint8Array(arrayBuffer);
             
-            // Create a local blob for storage and a preview URL
-            const res = await fetch(compressedBase64);
-            const blob = await res.blob();
+            for (let i = 0; i < byteString.length; i++) {
+                intArray[i] = byteString.charCodeAt(i);
+            }
+            
+            const blob = new Blob([arrayBuffer], { type: mimeType });
             
             setSelectedFile(blob);
-            setPreviewUrl(compressedBase64); // Use base64 as immediate preview
+            setPreviewUrl(compressedBase64);
             
             // Note: We don't update formData.image yet to avoid confusion with S3 URLs
             toast.success('Image ready!', { id: toastId });
@@ -169,7 +176,13 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                 }
             }
 
-            const itemLocation: GeoJSONPoint = location || { type: 'Point' as const, coordinates: [80.4365, 16.3067] };
+            if (!location) {
+                toast.error('Please capture your location first so neighbors can find your item.');
+                setIsSubmitting(false);
+                return;
+            }
+
+            const itemLocation: GeoJSONPoint = location;
 
             if (isEditMode && editItem) {
                 // Update existing item
