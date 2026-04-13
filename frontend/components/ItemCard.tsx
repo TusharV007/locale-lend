@@ -68,15 +68,26 @@ export function ItemCard({
           <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 via-transparent to-transparent" />
 
           {/* Status badge */}
-          <Badge
-            variant="outline"
-            className={cn(
-              'absolute top-3 right-3 backdrop-blur-sm border',
-              statusColors[item.status || 'available']
+          <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
+            <Badge
+              variant="outline"
+              className={cn(
+                'backdrop-blur-sm border',
+                statusColors[item.status || 'available']
+              )}
+            >
+              {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : 'Available'}
+            </Badge>
+
+            {isOwner && !isOwnerView && (
+              <Badge
+                variant="default"
+                className="bg-primary/90 text-primary-foreground backdrop-blur-sm border-none shadow-sm"
+              >
+                Your Listing
+              </Badge>
             )}
-          >
-            {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : 'Available'}
-          </Badge>
+          </div>
 
           {/* Distance badge */}
           <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-full bg-background/90 backdrop-blur-sm text-xs font-medium">

@@ -203,11 +203,27 @@ export const fetchItems = async (
         console.error("Error fetching items:", error);
         if ((error as any)?.code === 'failed-precondition') {
             console.warn("Missing index, fetching without sort");
-            const fallbackQ = query(collection(db, ITEMS_COLLECTION), limit(limitCount));
+            // Increase limit in fallback to allow for some local filtering
+            const fallbackLimit = searchQuery ? 100 : limitCount;
+            const fallbackQ = query(collection(db, ITEMS_COLLECTION), limit(fallbackLimit));
             const snap = await getDocs(fallbackQ);
-            const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Item));
+            
+            let items = snap.docs.map(d => {
+                const data = d.data();
+                return { id: d.id, ...data, createdAt: parseDate(data.createdAt) } as Item;
+            });
+
+            if (searchQuery) {
+                const lowerQuery = searchQuery.toLowerCase();
+                items = items.filter(item => 
+                    item.title.toLowerCase().includes(lowerQuery) || 
+                    (item.description && item.description.toLowerCase().includes(lowerQuery))
+                );
+                items = items.slice(0, limitCount);
+            }
+
             const newLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
-            return { items, lastDoc: newLastDoc, hasMore: snap.docs.length === limitCount };
+            return { items, lastDoc: newLastDoc, hasMore: snap.docs.length === fallbackLimit };
         }
         throw error;
     }

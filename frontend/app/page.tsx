@@ -29,7 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import LandingPage from '@/app/landing/page';
 
-const RADIUS_LIMIT_METERS = 5000; // 5km
+const RADIUS_LIMIT_METERS = 50000; // 50km
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
@@ -174,9 +174,8 @@ export default function Home() {
     fetchItemsData(userLocation || DEFAULT_USER_LOCATION, true);
   };
 
-  // Sort and filter items for display (exluding user's own items and unavailable items)
+  // Sort and filter items for display (exluding unavailable items)
   const sortedItems = [...nearbyItems]
-    .filter(item => item.owner.id !== user?.uid)
     .filter(item => item.status === 'available' || !item.status)
     .filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS)
     .sort((a, b) => {
