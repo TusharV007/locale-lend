@@ -320,10 +320,18 @@ export const createRequest = async (request: Omit<RequestData, "id" | "createdAt
 
         // 2. Notify lender via Professional Email (Resend)
         try {
+            console.log(`[Email] Attempting to notify lender: ${request.lenderId}`);
             const lenderProfile = await fetchUserProfile(request.lenderId);
-            if (lenderProfile?.email) {
+            
+            if (!lenderProfile) {
+                console.warn(`[Email] Could not find profile for lender ID: ${request.lenderId}. Email skipped.`);
+            } else if (!lenderProfile.email) {
+                console.warn(`[Email] Lender profile found but has no email address. Email skipped.`);
+            } else {
+                console.log(`[Email] Sending NEW_REQUEST email to: ${lenderProfile.email}`);
                 const amount = (request.rentalPricePerDay || 0) * (request.rentalDays || 1);
-                await fetch('/api/emails', {
+                
+                const response = await fetch('/api/emails', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -337,9 +345,16 @@ export const createRequest = async (request: Omit<RequestData, "id" | "createdAt
                         }
                     })
                 });
+
+                if (response.ok) {
+                    console.log(`[Email] NEW_REQUEST email triggered successfully.`);
+                } else {
+                    const errData = await response.json();
+                    console.error(`[Email] API rejected the request:`, errData);
+                }
             }
         } catch (emailErr) {
-            console.warn("Email notification failed:", emailErr);
+            console.warn("[Email] Systematic failure during notification flow:", emailErr);
         }
 
         return docRef.id;
