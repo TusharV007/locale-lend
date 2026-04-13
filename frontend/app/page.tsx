@@ -129,16 +129,15 @@ export default function Home() {
 
     // Request Location
     requestUserLocation(true); // Silent request
-  }, [user, selectedCategory, requestUserLocation]);
+  }, [user, selectedCategory, requestUserLocation, userLocation]);
 
-  // Handle search with debounce
   useEffect(() => {
     if (!user) return;
     const timer = setTimeout(() => {
       fetchItemsData(userLocation || DEFAULT_USER_LOCATION, true, searchQuery);
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [user, searchQuery, selectedCategory, userLocation]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -172,6 +171,24 @@ export default function Home() {
 
   const handleAddItemSuccess = () => {
     fetchItemsData(userLocation || DEFAULT_USER_LOCATION, true);
+    // Also refresh map items
+    const fetchMapItemsData = async () => {
+      try {
+        const result = await fetchItems(100);
+        const location = userLocation || DEFAULT_USER_LOCATION;
+        const filteredMapItems = result.items.map(item => {
+          const itemWithDistance = { ...item, distance: 0 };
+          if (location && item.location) {
+            itemWithDistance.distance = calculateDistance(location, item.location as GeoJSONPoint);
+          }
+          return itemWithDistance;
+        }).filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS);
+        setMapItems(filteredMapItems);
+      } catch (error) {
+        console.error('Failed to fetch map items:', error);
+      }
+    };
+    fetchMapItemsData();
   };
 
   // Sort and filter items for display (exluding unavailable items)

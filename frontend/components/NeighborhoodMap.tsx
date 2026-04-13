@@ -297,7 +297,7 @@ export function NeighborhoodMap({
 
       {/* Map overlay legend */}
       <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm rounded-lg p-3 shadow-card z-[1000]">
-        <p className="text-xs font-medium text-muted-foreground mb-2">Items within 5km</p>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Nearby Items</p>
         <p className="text-2xl font-bold text-card-foreground">{items.length}</p>
       </div>
 
