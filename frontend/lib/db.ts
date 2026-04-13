@@ -451,6 +451,47 @@ export const updateRequestStatus = async (requestId: string, status: 'accepted' 
                     referralPoints: (requestData.borrowerPoints || 0) + 10,
                     itemsBorrowedCount: (requestData.borrowerBorrows || 0) + 1
                 }, "Transaction completed (Borrower)");
+
+                // 3. Notify both parties about the return
+                try {
+                    // Notify Borrower
+                    const borrower = await fetchUserProfile(requestData.borrowerId);
+                    if (borrower?.email) {
+                        await fetch('/api/emails', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: 'ITEM_RETURNED',
+                                payload: {
+                                    to: borrower.email,
+                                    userName: borrower.name || 'Neighbor',
+                                    itemTitle: requestData.itemTitle,
+                                    role: 'borrower'
+                                }
+                            })
+                        });
+                    }
+
+                    // Notify Lender
+                    const lender = await fetchUserProfile(requestData.lenderId);
+                    if (lender?.email) {
+                        await fetch('/api/emails', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: 'ITEM_RETURNED',
+                                payload: {
+                                    to: lender.email,
+                                    userName: lender.name || 'Neighbor',
+                                    itemTitle: requestData.itemTitle,
+                                    role: 'lender'
+                                }
+                            })
+                        });
+                    }
+                } catch (emailErr) {
+                    console.warn("Return confirmation email failed:", emailErr);
+                }
             }
         }
     } catch (error) {

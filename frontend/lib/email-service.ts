@@ -257,3 +257,56 @@ export const sendPaymentConfirmationEmail = async ({
     return { success: false, error: err };
   }
 };
+
+export const sendItemReturnedEmail = async ({
+  to,
+  userName,
+  itemTitle,
+  role,
+}: {
+  to: string;
+  userName: string;
+  itemTitle: string;
+  role: 'lender' | 'borrower';
+}) => {
+  const isLender = role === 'lender';
+  const subject = `Item Returned: ${itemTitle} ✅`;
+  const title = isLender ? 'Your item is back! 📦' : 'Item returned successfully! ✅';
+  const message = isLender 
+    ? `Great news! <strong>"${itemTitle}"</strong> has been marked as returned and is now back in your inventory. It's automatically been listed as <strong>available</strong> for other neighbors.`
+    : `Thank you for returning <strong>"${itemTitle}"</strong>! We hope it was useful for your project. Your neighbor has been notified that the item is back safely.`;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `LocalShare <${FROM_EMAIL}>`,
+      to,
+      subject,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #22c55e;">${title}</h2>
+          <p>Hi ${userName},</p>
+          <p>${message}</p>
+          
+          <div style="background: #fdf2f8; padding: 20px; border-radius: 10px; margin: 25px 0; border-left: 4px solid #db2777;">
+            <h3 style="margin-top: 0; color: #9d174d;">Share your experience! ⭐️</h3>
+            <p style="color: #4b5563; font-size: 14px;">Reviewing your neighbor helps build trust in the community. Take a moment to leave a review for this transaction.</p>
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/profile?tab=borrows" 
+               style="display: inline-block; background: #db2777; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 5px; font-size: 13px;">
+               Leave a Review
+            </a>
+          </div>
+
+          <p style="font-size: 14px; color: #4b5563;">Thank you for helping us build a more sustainable and connected neighborhood.</p>
+          
+          <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;" />
+          <p style="font-size: 12px; color: #9ca3af;">See you next time,<br>The LocalShare Team</p>
+        </div>
+      `,
+    });
+
+    if (error) return { success: false, error };
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err };
+  }
+};
