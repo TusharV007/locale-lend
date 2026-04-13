@@ -1,6 +1,7 @@
 import { resend } from './resend';
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+const APP_URL = 'https://localshareapp.vercel.app';
 
 export const sendBorrowRequestEmail = async ({
   to,
@@ -19,23 +20,23 @@ export const sendBorrowRequestEmail = async ({
     const { data, error } = await resend.emails.send({
       from: `LocalShare <${FROM_EMAIL}>`,
       to,
-      subject: `New Borrow Request: ${itemTitle}`,
+      subject: `${borrowerName} is interested in your ${itemTitle}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #22c55e;">New Borrow Request! 🤝</h2>
+          <h2 style="color: #166534;">New Request for your item! 🤝</h2>
           <p>Hi there,</p>
-          <p><strong>${borrowerName}</strong> wants to borrow your <strong>"${itemTitle}"</strong>.</p>
+          <p><strong>${borrowerName}</strong> would like to borrow your <strong>"${itemTitle}"</strong>.</p>
           <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 0; color: #6b7280; font-size: 14px;">Potential Earnings</p>
+            <p style="margin: 0; color: #6b7280; font-size: 14px;">Estimated Reward</p>
             <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: bold; color: #111827;">₹${amount}</p>
           </div>
-          <p>You can accept or decline this request directly from your dashboard.</p>
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://localshareapp.vercel.app'}/messages?id=${requestId}" 
-             style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">
+          <p>You can review and respond to this request from your neighborhood dashboard.</p>
+          <a href="${APP_URL}/messages?id=${requestId}" 
+             style="display: inline-block; background: #166534; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">
              Review Request
           </a>
           <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;" />
-          <p style="font-size: 12px; color: #9ca3af;">You're receiving this because someone is interested in an item you listed on LocalShare.</p>
+          <p style="font-size: 12px; color: #9ca3af;">You're receiving this because you're a member of the LocalShare community.</p>
         </div>
       `,
     });
@@ -81,13 +82,13 @@ export const sendRequestStatusUpdateEmail = async ({
           
           ${isAccepted ? `
             <p>You can now proceed with the payment and coordinate the pickup through chat.</p>
-            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://localshareapp.vercel.app'}/messages?id=${requestId}" 
+            <a href="${APP_URL}/messages?id=${requestId}" 
                style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">
                Pay & Chat
             </a>
           ` : `
             <p>Don't worry! There are plenty of other items available in your neighborhood.</p>
-            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://localshareapp.vercel.app'}/search" 
+            <a href="${APP_URL}/search" 
                style="display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">
                Explore Other Items
             </a>
@@ -133,7 +134,7 @@ export const sendWelcomeEmail = async ({
             </ul>
           </div>
 
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://localshareapp.vercel.app'}/search" 
+          <a href="${APP_URL}/search" 
              style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">
              Explore Nearby Items
           </a>
@@ -178,7 +179,7 @@ export const sendLoginNotificationEmail = async ({
 
           <p style="font-size: 14px; color: #4b5563;">If this was you, you can safely ignore this email. If you don't recognize this activity, please change your password immediately.</p>
           
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://localshareapp.vercel.app'}/profile" 
+          <a href="${APP_URL}/profile" 
              style="display: inline-block; color: #3b82f6; text-decoration: underline; font-weight: 500; margin-top: 10px;">
              Review Account Activity
           </a>
@@ -240,7 +241,7 @@ export const sendPaymentConfirmationEmail = async ({
 
           <p style="font-size: 14px; color: #4b5563;">You can view the full transaction details and chat with your neighbor in the message center.</p>
           
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://localshareapp.vercel.app'}/messages" 
+          <a href="${APP_URL}/messages" 
              style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">
              Go to Messages
           </a>
@@ -290,7 +291,7 @@ export const sendItemReturnedEmail = async ({
           <div style="background: #fdf2f8; padding: 20px; border-radius: 10px; margin: 25px 0; border-left: 4px solid #db2777;">
             <h3 style="margin-top: 0; color: #9d174d;">Share your experience! ⭐️</h3>
             <p style="color: #4b5563; font-size: 14px;">Reviewing your neighbor helps build trust in the community. Take a moment to leave a review for this transaction.</p>
-            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://localshareapp.vercel.app'}/profile?tab=borrows" 
+            <a href="${APP_URL}/profile?tab=borrows" 
                style="display: inline-block; background: #db2777; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 5px; font-size: 13px;">
                Leave a Review
             </a>
