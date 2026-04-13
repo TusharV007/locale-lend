@@ -97,14 +97,34 @@ export const subscribeUserLendingHistory = (userId: string, callback: (history: 
     );
 
     return onSnapshot(q, async (snapshot) => {
-        const historyItems: HistoryItem[] = snapshot.docs.map(d => {
+        const historyItems: HistoryItem[] = await Promise.all(snapshot.docs.map(async (d) => {
             const data = d.data();
+            
+            // Fetch item image if not present in request data or recently updated
+            let itemImage = data.itemImage;
+            if (!itemImage && data.itemId) {
+                try {
+                    const itemDoc = await getDoc(doc(db, ITEMS_COLLECTION, data.itemId));
+                    if (itemDoc.exists()) {
+                        itemImage = itemDoc.data().images?.[0];
+                    }
+                } catch { /* ignore */ }
+            }
+
             return {
                 requestId: d.id,
-                ...data,
-                createdAt: parseDate(data.createdAt)
-            } as any;
-        });
+                itemId: data.itemId,
+                itemTitle: data.itemTitle,
+                itemImage,
+                otherPartyId: data.borrowerId, // For lending, other party is borrower
+                otherPartyName: data.borrowerName,
+                status: data.status,
+                paymentStatus: data.paymentStatus,
+                rentalPricePerDay: data.rentalPricePerDay,
+                rentalDays: data.rentalDays,
+                createdAt: parseDate(data.createdAt),
+            };
+        }));
         callback(historyItems);
     });
 };
@@ -117,14 +137,34 @@ export const subscribeUserBorrowingHistory = (userId: string, callback: (history
     );
 
     return onSnapshot(q, async (snapshot) => {
-        const historyItems: HistoryItem[] = snapshot.docs.map(d => {
+        const historyItems: HistoryItem[] = await Promise.all(snapshot.docs.map(async (d) => {
             const data = d.data();
+            
+            // Fetch item image if not present
+            let itemImage = data.itemImage;
+            if (!itemImage && data.itemId) {
+                try {
+                    const itemDoc = await getDoc(doc(db, ITEMS_COLLECTION, data.itemId));
+                    if (itemDoc.exists()) {
+                        itemImage = itemDoc.data().images?.[0];
+                    }
+                } catch { /* ignore */ }
+            }
+
             return {
                 requestId: d.id,
-                ...data,
-                createdAt: parseDate(data.createdAt)
-            } as any;
-        });
+                itemId: data.itemId,
+                itemTitle: data.itemTitle,
+                itemImage,
+                otherPartyId: data.lenderId, // For borrowing, other party is lender
+                otherPartyName: data.lenderName,
+                status: data.status,
+                paymentStatus: data.paymentStatus,
+                rentalPricePerDay: data.rentalPricePerDay,
+                rentalDays: data.rentalDays,
+                createdAt: parseDate(data.createdAt),
+            };
+        }));
         callback(historyItems);
     });
 };

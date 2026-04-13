@@ -39,7 +39,7 @@ export function ReviewModal({ transaction, isOpen, onClose, onSuccess, revieweeI
         itemId: transaction.itemId,
         itemTitle: transaction.itemTitle,
         rating,
-        comment: comment.trim() || undefined,
+        comment: comment.trim() || null,
       });
 
       toast.success('Review submitted successfully!');

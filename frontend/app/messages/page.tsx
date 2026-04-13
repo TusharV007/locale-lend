@@ -13,8 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
-import { fetchUserRequests, updateRequestStatus, type RequestData } from '@/lib/db';
+import { fetchUserRequests, updateRequestStatus, fetchUserProfile, type RequestData } from '@/lib/db';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { useStore } from '@/store/useStore';
+import { PublicProfileModal } from '@/components/PublicProfileModal';
 
 export default function MessagesPage() {
     const { user, loading: authLoading } = useAuth();
@@ -25,6 +27,20 @@ export default function MessagesPage() {
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
     const [paymentRequest, setPaymentRequest] = useState<RequestData | null>(null);
     const { performAction } = useAsyncAction();
+    const { viewingUser, setViewingUser, isPublicProfileOpen, setPublicProfileOpen } = useStore();
+
+    const handleViewProfile = async (userId: string) => {
+        try {
+            const fullUser = await fetchUserProfile(userId);
+            if (fullUser) {
+                setViewingUser(fullUser);
+                setPublicProfileOpen(true);
+            }
+        } catch (error) {
+            console.error('Failed to fetch user profile:', error);
+            toast.error('Could not load user profile');
+        }
+    };
 
     useEffect(() => {
         if (!authLoading && !user) router.push('/auth');
@@ -120,6 +136,7 @@ export default function MessagesPage() {
                                     onStatusUpdate={handleStatusUpdate}
                                     onChatOpen={() => setSelectedRequest(req)}
                                     onPayment={() => setPaymentRequest(req)}
+                                    onViewProfile={handleViewProfile}
                                 />
                             ))
                         )}
@@ -138,6 +155,7 @@ export default function MessagesPage() {
                                     onStatusUpdate={handleStatusUpdate}
                                     onChatOpen={() => setSelectedRequest(req)}
                                     onPayment={() => setPaymentRequest(req)}
+                                    onViewProfile={handleViewProfile}
                                 />
                             ))
                         )}
@@ -180,6 +198,12 @@ export default function MessagesPage() {
                     toast.success('Item listed successfully!');
                 }}
             />
+
+            <PublicProfileModal
+                user={viewingUser}
+                isOpen={isPublicProfileOpen}
+                onClose={() => setPublicProfileOpen(false)}
+            />
         </div>
     );
 }
@@ -191,6 +215,7 @@ const RequestCard = ({
     onStatusUpdate,
     onChatOpen,
     onPayment,
+    onViewProfile,
 }: {
     request: RequestData;
     isIncoming: boolean;
@@ -198,6 +223,7 @@ const RequestCard = ({
     onStatusUpdate: (id: string, status: 'accepted' | 'rejected') => void;
     onChatOpen: () => void;
     onPayment: () => void;
+    onViewProfile: (userId: string) => void;
 }) => {
     const showPayButton = !isIncoming
         && request.status === 'accepted'
@@ -235,8 +261,8 @@ const RequestCard = ({
 
                     <p className="text-sm text-muted-foreground mt-1">
                         {isIncoming
-                            ? <><span className="text-foreground font-medium">{request.borrowerName}</span> wants to borrow this</>
-                            : <>To: <span className="font-medium text-foreground">{request.lenderName}</span></>
+                            ? <><span className="text-primary font-medium cursor-pointer hover:underline" onClick={() => onViewProfile(request.borrowerId)}>{request.borrowerName}</span> wants to borrow this</>
+                            : <>To: <span className="font-medium text-primary cursor-pointer hover:underline" onClick={() => onViewProfile(request.lenderId)}>{request.lenderName}</span></>
                         }
                     </p>
 

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
+import { useStore } from '@/store/useStore';
 
 const ItemLocationMap = dynamic(() => import('./ItemLocationMap'), { ssr: false });
 
@@ -32,6 +33,7 @@ export function ItemCard({
   onDelete,
   onStatusChange
 }: ItemCardProps) {
+  const { setViewingUser, setPublicProfileOpen } = useStore();
   const isOwner = currentUserId === item.owner.id || isOwnerView;
   const [showLocationMap, setShowLocationMap] = useState(false);
 
@@ -110,22 +112,30 @@ export function ItemCard({
           <div className="mt-auto flex flex-col gap-3">
             {/* Owner info - hidden in owner view since it's redundant */}
             {!isOwnerView && (
-              <div className="flex items-center justify-between pt-3 border-t border-border">
+              <div 
+                className="flex items-center justify-between pt-3 border-t border-border cursor-pointer hover:bg-secondary/20 rounded-lg -mx-1 px-1 transition-colors group/owner"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewingUser(item.owner);
+                  setPublicProfileOpen(true);
+                }}
+                title={`View ${item.owner.name}'s profile`}
+              >
                 <div className="flex items-center gap-2 overflow-hidden">
                   {item.owner.avatar && !imageError && item.owner.avatar !== 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80' ? (
                     <img
                       src={item.owner.avatar}
                       alt={item.owner.name}
                       onError={() => setImageError(true)}
-                      className="w-8 h-8 shrink-0 rounded-full object-cover border-2 border-primary/20"
+                      className="w-8 h-8 shrink-0 rounded-full object-cover border-2 border-primary/20 group-hover/owner:border-primary/50 transition-colors"
                     />
                   ) : (
-                    <div className="w-8 h-8 shrink-0 rounded-full bg-secondary text-primary font-semibold flex flex-col pt-[1px] items-center justify-center">
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-secondary text-primary font-semibold flex flex-col pt-[1px] items-center justify-center group-hover/owner:bg-primary/10 transition-colors">
                       <span>{item.owner.name?.charAt(0)?.toUpperCase()}</span>
                     </div>
                   )}
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium text-card-foreground truncate">
+                    <span className="text-sm font-medium text-card-foreground truncate group-hover/owner:text-primary transition-colors">
                       {item.owner.name}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">

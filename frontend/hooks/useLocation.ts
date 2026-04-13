@@ -23,8 +23,10 @@ export function useLocation() {
                 if (!silent) toast.success("Location found!", { description: "Showing items near you." });
             },
             (error) => {
-                console.error("Location access error:", error);
+                // Only log errors to console if NOT a silent background request
                 if (!silent) {
+                    console.error(`Location access error (code ${error.code}): ${error.message}`);
+                    
                     if (error.code === error.PERMISSION_DENIED) {
                         toast.error("Location access required", { 
                             description: "Please allow location access in your browser settings to see nearby items." 

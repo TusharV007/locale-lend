@@ -115,6 +115,7 @@ interface NeighborhoodMapProps {
   items: Item[];
   onItemSelect: (item: Item) => void;
   onRequestClick: (item: Item) => void;
+  onViewProfile: (user: any) => void;
 }
 
 /**
@@ -130,6 +131,7 @@ export function NeighborhoodMap({
   items,
   onItemSelect,
   onRequestClick,
+  onViewProfile,
 }: NeighborhoodMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -239,6 +241,13 @@ export function NeighborhoodMap({
               <svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
               ${item.owner.trustScore.toFixed(1)}
             </span>
+            <span>•</span>
+            <span 
+              id="profile-link-${item.id}"
+              style="color: #3b82f6; text-decoration: underline; cursor: pointer;"
+            >
+              View Profile
+            </span>
           </div>
           ${item.availabilityStatus === 'Available' ? `
             <button 
@@ -277,6 +286,15 @@ export function NeighborhoodMap({
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
             onRequestClick(item);
+            mapInstanceRef.current?.closePopup();
+          });
+        }
+
+        const profileBtn = document.getElementById(`profile-link-${item.id}`);
+        if (profileBtn) {
+          profileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onViewProfile(item.owner);
             mapInstanceRef.current?.closePopup();
           });
         }

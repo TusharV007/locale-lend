@@ -35,6 +35,12 @@ interface AppState {
   globalProgress: number;
   setGlobalLoading: (loading: boolean) => void;
   setGlobalProgress: (progress: number) => void;
+
+  // Public Profile View
+  viewingUser: User | null;
+  isPublicProfileOpen: boolean;
+  setViewingUser: (user: User | null) => void;
+  setPublicProfileOpen: (open: boolean) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -66,4 +72,9 @@ export const useStore = create<AppState>((set) => ({
   globalProgress: 0,
   setGlobalLoading: (loading) => set({ globalLoading: loading }),
   setGlobalProgress: (progress) => set({ globalProgress: progress }),
+
+  viewingUser: null,
+  isPublicProfileOpen: false,
+  setViewingUser: (user) => set({ viewingUser: user }),
+  setPublicProfileOpen: (open) => set({ isPublicProfileOpen: open }),
 }));

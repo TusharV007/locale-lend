@@ -25,6 +25,7 @@ import { AddItemModal } from '@/components/AddItemModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import LandingPage from '@/app/landing/page';
+import { PublicProfileModal } from '@/components/PublicProfileModal';
 
 const RADIUS_LIMIT_METERS = 500000; // 500km
 
@@ -49,7 +50,8 @@ export default function Home() {
     selectedCategory, setSelectedCategory,
     selectedItem, setSelectedItem,
     isRequestModalOpen, setRequestModalOpen,
-    setCurrentUser
+    setCurrentUser,
+    viewingUser, isPublicProfileOpen, setPublicProfileOpen
   } = useStore();
 
   const { userLocation: actualLocation, requestUserLocation } = useLocation();
@@ -263,12 +265,16 @@ export default function Home() {
           {userLocation && (
             <div className="lg:sticky lg:top-24 h-fit">
               <NeighborhoodMap
-                userLocation={userLocation}
-                userAvatar={user.photoURL || undefined}
-                userName={user.displayName || 'User'}
+                userLocation={userLocation || { type: 'Point', coordinates: [80.4365, 16.3067] }}
+                userAvatar={user?.photoURL || ''}
+                userName={user?.displayName || ''}
                 items={mapItems}
                 onItemSelect={handleItemSelect}
                 onRequestClick={handleRequestClick}
+                onViewProfile={(user) => {
+                  setViewingUser(user);
+                  setPublicProfileOpen(true);
+                }}
               />
             </div>
           )}
@@ -419,6 +425,12 @@ export default function Home() {
       <LocationRequiredModal
         isOpen={showLocationModal}
         onRetry={handleRequestLocation}
+      />
+
+      <PublicProfileModal
+        user={viewingUser}
+        isOpen={isPublicProfileOpen}
+        onClose={() => setPublicProfileOpen(false)}
       />
     </div>
   );

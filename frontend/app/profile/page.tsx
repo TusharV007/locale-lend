@@ -470,11 +470,7 @@ function ProfilePageContent() {
                    if (reviewTransaction) {
                        setReviewedTransactions(prev => new Set(prev).add(reviewTransaction.requestId));
                    }
-                   // Also refresh history to update the trust score UI if needed
-                   if (user) {
-                       fetchUserLendingHistory(user.uid).then(setLendingHistory);
-                   }
-               }}
+                }}
                revieweeId={revieweeId}
             />
         </div>
