@@ -659,6 +659,57 @@ export const createPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 
         // Update request paymentStatus
         const requestRef = doc(db, REQUESTS_COLLECTION, payment.requestId);
         await updateDoc(requestRef, { paymentStatus: 'paid' });
+
+        // Trigger emails to both borrower and lender
+        try {
+            const requestDoc = await getDoc(requestRef);
+            if (requestDoc.exists()) {
+                const requestData = requestDoc.data();
+                
+                // 1. Notify Borrower (Payer)
+                const borrower = await fetchUserProfile(requestData.borrowerId);
+                if (borrower?.email) {
+                    await fetch('/api/emails', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'PAYMENT_CONFIRMATION',
+                            payload: {
+                                to: borrower.email,
+                                userName: borrower.name || 'Neighbor',
+                                itemTitle: requestData.itemTitle,
+                                amount: payment.amount,
+                                role: 'payer',
+                                paymentId: docRef.id
+                            }
+                        })
+                    });
+                }
+
+                // 2. Notify Lender (Receiver)
+                const lender = await fetchUserProfile(requestData.lenderId);
+                if (lender?.email) {
+                    await fetch('/api/emails', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'PAYMENT_CONFIRMATION',
+                            payload: {
+                                to: lender.email,
+                                userName: lender.name || 'Neighbor',
+                                itemTitle: requestData.itemTitle,
+                                amount: payment.amount,
+                                role: 'receiver',
+                                paymentId: docRef.id
+                            }
+                        })
+                    });
+                }
+            }
+        } catch (emailErr) {
+            console.warn("Payment outcome email failed:", emailErr);
+        }
+
         return docRef.id;
     } catch (error) {
         console.error("Error creating payment:", error);

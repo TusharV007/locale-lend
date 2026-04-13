@@ -195,3 +195,65 @@ export const sendLoginNotificationEmail = async ({
     return { success: false, error: err };
   }
 };
+export const sendPaymentConfirmationEmail = async ({
+  to,
+  userName,
+  itemTitle,
+  amount,
+  role,
+  paymentId,
+}: {
+  to: string;
+  userName: string;
+  itemTitle: string;
+  amount: number;
+  role: 'payer' | 'receiver';
+  paymentId: string;
+}) => {
+  const isPayer = role === 'payer';
+  const subject = isPayer 
+    ? `Payment Successful: ${itemTitle} 🏷️` 
+    : `Payment Received: ${itemTitle} 💰`;
+  
+  const title = isPayer ? 'Payment Successful! 🎉' : 'Payment Received! 💰';
+  const message = isPayer 
+    ? `Your payment of <strong>₹${amount}</strong> for <strong>"${itemTitle}"</strong> was successful. You can now coordinate the pickup with the lender.`
+    : `You have received a payment of <strong>₹${amount}</strong> from your neighbor for borrowing <strong>"${itemTitle}"</strong>.`;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `LocalShare <${FROM_EMAIL}>`,
+      to,
+      subject,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #22c55e;">${title}</h2>
+          <p>Hi ${userName},</p>
+          <p>${message}</p>
+          
+          <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px dashed #e5e7eb;">
+            <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Transaction Details</p>
+            <p style="margin: 8px 0 0 0; font-size: 16px;"><strong>Item:</strong> ${itemTitle}</p>
+            <p style="margin: 4px 0 0 0; font-size: 16px;"><strong>Amount:</strong> ₹${amount}</p>
+            <p style="margin: 4px 0 0 0; font-size: 14px; color: #9ca3af;"><strong>ID:</strong> ${paymentId}</p>
+          </div>
+
+          <p style="font-size: 14px; color: #4b5563;">You can view the full transaction details and chat with your neighbor in the message center.</p>
+          
+          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/messages" 
+             style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">
+             Go to Messages
+          </a>
+          
+          <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;" />
+          <p style="font-size: 12px; color: #9ca3af;">Happy sharing!<br>The LocalShare Team</p>
+        </div>
+      `,
+    });
+
+    if (error) return { success: false, error };
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err };
+  }
+};

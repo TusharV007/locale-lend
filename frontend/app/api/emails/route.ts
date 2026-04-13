@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendBorrowRequestEmail, sendRequestStatusUpdateEmail, sendWelcomeEmail, sendLoginNotificationEmail } from '@/lib/email-service';
+import { sendBorrowRequestEmail, sendRequestStatusUpdateEmail, sendWelcomeEmail, sendLoginNotificationEmail, sendPaymentConfirmationEmail } from '@/lib/email-service';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
         break;
       case 'LOGIN':
         result = await sendLoginNotificationEmail(payload);
+        break;
+      case 'PAYMENT_CONFIRMATION':
+        result = await sendPaymentConfirmationEmail(payload);
         break;
       default:
         return NextResponse.json({ error: 'Invalid email type' }, { status: 400 });
