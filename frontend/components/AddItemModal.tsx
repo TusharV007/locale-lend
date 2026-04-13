@@ -134,6 +134,7 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
 
         try {
             const toastId = toast.loading('Processing image...');
+            const compressedBase64 = await compressImage(file);
             // Convert base64 to Blob manually for better cross-browser support
             const [header, base64Data] = compressedBase64.split(',');
             const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
