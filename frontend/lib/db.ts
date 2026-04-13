@@ -347,14 +347,14 @@ export const createRequest = async (request: Omit<RequestData, "id" | "createdAt
                 });
 
                 if (response.ok) {
-                    console.log(`[Email] NEW_REQUEST email triggered successfully.`);
+                    console.log(`[Email] SUCCESS: NEW_REQUEST email sent to ${lenderProfile.email}`);
                 } else {
-                    const errData = await response.json();
-                    console.error(`[Email] API rejected the request:`, errData);
+                    const errData = await response.json().catch(() => ({ error: 'Unknown API error' }));
+                    console.error(`[Email] ERROR: API rejected the request for ${lenderProfile.email}:`, errData);
                 }
             }
         } catch (emailErr) {
-            console.warn("[Email] Systematic failure during notification flow:", emailErr);
+            console.error("[Email] CRITICAL: Systematic failure during notification flow:", emailErr);
         }
 
         return docRef.id;
