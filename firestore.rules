@@ -48,9 +48,9 @@ service cloud.firestore {
       );
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
-        request.auth.uid == resource.data.borrowerId || 
-        request.auth.uid == resource.data.lenderId || 
-        isAdmin()
+        isAdmin() ||
+        (request.auth.uid == resource.data.lenderId) ||
+        (request.auth.uid == resource.data.borrowerId && request.resource.data.status != 'completed')
       );
       allow delete: if isAdmin();
       

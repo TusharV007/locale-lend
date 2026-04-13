@@ -206,12 +206,12 @@ function ProfilePageContent() {
                 
                 {/* Actions */}
                 <div className="flex gap-2 mt-2">
-                    {item.status === 'accepted' && (
+                    {item.status === 'accepted' && role === 'lender' && (
                         <button 
                             onClick={() => handleCompleteRequest(item.requestId)}
                             className="text-xs bg-primary/10 text-primary hover:bg-primary/20 px-2 py-1 rounded transition-colors font-medium"
                         >
-                            {role === 'lender' ? 'Mark Completed' : 'Mark Returned'}
+                            Mark Completed
                         </button>
                     )}
                     
