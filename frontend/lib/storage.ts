@@ -5,14 +5,16 @@ export const uploadImage = async (file: File | Blob, path: string): Promise<stri
         formData.append('file', file, 'upload.jpg');
         formData.append('path', path);
 
-        const response = await fetch('/api/upload/s3', {
+        const response = await fetch('/api/assets/store', {
             method: 'POST',
             body: formData,
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to upload to S3');
+            const errorText = await response.text();
+            let errorData;
+            try { errorData = JSON.parse(errorText); } catch(e) {}
+            throw new Error(errorData?.error || `Failed to upload: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();

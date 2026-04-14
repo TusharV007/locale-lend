@@ -173,6 +173,7 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                     const filename = `items/${targetUId}/${Date.now()}-item-image.jpg`;
                     finalImageUrl = await uploadImage(selectedFile, filename);
                 } catch (err) {
+                    console.error("Cloud upload error details:", err);
                     throw new Error('Cloud upload failed. Please try again.');
                 }
             }
