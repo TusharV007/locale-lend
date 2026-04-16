@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, MessageSquare, Star, Shield, MapPin, Minus, Plus } from 'lucide-react';
@@ -21,11 +21,33 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
   const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [duration, setDuration] = useState(1);
-  const [priceUnit, setPriceUnit] = useState<'hour' | 'day'>(item?.priceUnit || 'day');
+  const [priceUnit, setPriceUnit] = useState<'hour' | 'day'>('day');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageError, setImageError] = useState(false);
 
+  // Sync state when modal opens or item changes
+  useEffect(() => {
+    if (isOpen && item) {
+      setDuration(1);
+      setPriceUnit(item.priceUnit || 'day');
+      setMessage('');
+    }
+  }, [isOpen, item]);
+
   if (!item) return null;
+
+  // Calculate rate based on conversion
+  const getRate = () => {
+    if (!item) return 0;
+    if (priceUnit === item.priceUnit) return item.rentalPrice;
+    // Conversion: 1 Day = 24 Hours
+    if (priceUnit === 'day' && item.priceUnit === 'hour') return item.rentalPrice * 24;
+    if (priceUnit === 'hour' && item.priceUnit === 'day') return item.rentalPrice / 24;
+    return item.rentalPrice;
+  };
+
+  const currentRate = getRate();
+  const totalPrice = currentRate * duration;
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -39,8 +61,8 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
         lenderName: item.owner.name,
         message: message,
         duration: duration,
-        priceUnit: item.priceUnit,
-        selectedPrice: item.rentalPrice
+        priceUnit: priceUnit,
+        selectedPrice: currentRate
       };
 
       await createRequest(requestData);
@@ -149,22 +171,57 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
               {/* Rental Duration input */}
               <div className="space-y-4">
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-card-foreground flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    Rental Rate
-                  </label>
-                  <div className="bg-secondary p-3 rounded-xl border border-secondary">
-                    <div className="text-sm font-bold text-foreground">
-                      ₹{item.rentalPrice} per {item.priceUnit === 'day' ? 'day' : 'hour'}
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-card-foreground flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Rental Rate
+                    </label>
+                    <div className="flex bg-secondary p-1 rounded-lg border border-border">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPriceUnit('hour');
+                            setDuration(1);
+                          }}
+                          className={cn(
+                            "px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all",
+                            priceUnit === 'hour' ? "bg-background text-primary shadow-sm" : "hover:bg-background/50 text-muted-foreground"
+                          )}
+                        >
+                          Hourly
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPriceUnit('day');
+                            setDuration(1);
+                          }}
+                          className={cn(
+                            "px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all",
+                            priceUnit === 'day' ? "bg-background text-primary shadow-sm" : "hover:bg-background/50 text-muted-foreground"
+                          )}
+                        >
+                          Daily
+                        </button>
                     </div>
+                  </div>
+                  <div className="bg-secondary p-3 rounded-xl border border-secondary flex justify-between items-center">
+                    <div className="text-sm font-bold text-foreground">
+                      ₹{currentRate.toFixed(2)} per {priceUnit}
+                    </div>
+                    {priceUnit !== item.priceUnit && (
+                        <span className="text-[10px] text-muted-foreground italic">
+                            (Converted from {item.priceUnit}ly rate)
+                        </span>
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="flex flex-col text-sm font-medium text-card-foreground">
-                    <span>Duration ({item.priceUnit === 'day' ? 'Days' : 'Hours'})</span>
-                    <span className="text-xs text-muted-foreground mt-0.5">
-                      Total: ₹{(item.rentalPrice * duration).toFixed(2)}
+                    <span>Duration ({priceUnit === 'day' ? 'Days' : 'Hours'})</span>
+                    <span className="text-xs font-bold text-primary mt-0.5">
+                      Total: ₹{totalPrice.toFixed(2)}
                     </span>
                   </label>
                   <div className="flex items-center gap-3">
@@ -182,7 +239,7 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
                     <Button 
                       variant="outline" 
                       size="icon" 
-                      onClick={() => setDuration(Math.min(item.priceUnit === 'day' ? 30 : 48, duration + 1))}
+                      onClick={() => setDuration(Math.min(priceUnit === 'day' ? 30 : 48, duration + 1))}
                     >
                       <Plus className="w-4 h-4" />
                     </Button>

@@ -8,7 +8,7 @@ import { ReviewModal } from '@/components/ReviewModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ItemCard } from '@/components/ItemCard';
-import { Package, ArrowUpRight, ArrowDownLeft, IndianRupee, CheckCircle2, Clock, XCircle, Star, Gift, History } from 'lucide-react';
+import { Package, ArrowUpRight, ArrowDownLeft, IndianRupee, CheckCircle2, Clock, XCircle, Star, Gift, History, User2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Item } from '@/types';
 import {
@@ -31,9 +31,12 @@ import {
     subscribeUserLendingHistory,
     subscribeUserBorrowingHistory,
     subscribeUserProfile,
+    fetchUserProfile,
     type HistoryItem,
     type PaginatedUserItems,
 } from '@/lib/db';
+import { useStore } from '@/store/useStore';
+import { PublicProfileModal } from '@/components/PublicProfileModal';
 import { toast } from 'sonner';
 import { ReferralCard } from '@/components/ReferralCard';
 import { User as DBUser } from '@/types';
@@ -60,7 +63,8 @@ const HistoryCard = ({
     setRevieweeId, 
     setReviewTransaction, 
     setIsReviewModalOpen,
-    handleCompleteRequest 
+    handleCompleteRequest,
+    onViewProfile
 }: { 
     item: HistoryItem; 
     role: 'lender' | 'borrower';
@@ -69,6 +73,7 @@ const HistoryCard = ({
     setReviewTransaction: (item: HistoryItem) => void;
     setIsReviewModalOpen: (open: boolean) => void;
     handleCompleteRequest: (id: string) => void;
+    onViewProfile: (userId: string) => void;
 }) => {
     return (
     <div className="bg-card border rounded-xl p-4 flex gap-4 items-center shadow-sm hover:shadow-md transition-shadow">
@@ -83,7 +88,12 @@ const HistoryCard = ({
             <p className="font-semibold text-foreground truncate">{item.itemTitle}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
                 {role === 'lender' ? `Borrowed by: ` : `Lent by: `}
-                <span className="text-foreground font-medium">{item.otherPartyName}</span>
+                <button 
+                    onClick={() => onViewProfile(item.otherPartyId)}
+                    className="text-primary font-medium hover:underline focus:outline-none"
+                >
+                    {item.otherPartyName}
+                </button>
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
                 {item.createdAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -160,6 +170,20 @@ function ProfilePageContent() {
     const [revieweeId, setRevieweeId] = useState<string>('');
     const [reviewedTransactions, setReviewedTransactions] = useState<Set<string>>(new Set());
     const { performAction } = useAsyncAction();
+    const { viewingUser, setViewingUser, isPublicProfileOpen, setPublicProfileOpen } = useStore();
+
+    const handleViewProfile = async (userId: string) => {
+        try {
+            const fullUser = await fetchUserProfile(userId);
+            if (fullUser) {
+                setViewingUser(fullUser);
+                setPublicProfileOpen(true);
+            }
+        } catch (error) {
+            console.error('Failed to fetch user profile:', error);
+            toast.error('Could not load user profile');
+        }
+    };
 
     // Pagination state for listings
     const [listingsLastDoc, setListingsLastDoc] = useState<any>(null);
@@ -386,7 +410,9 @@ function ProfilePageContent() {
                                         setRevieweeId={setRevieweeId}
                                         setReviewTransaction={setReviewTransaction}
                                         setIsReviewModalOpen={setIsReviewModalOpen}
+                                        setIsReviewModalOpen={setIsReviewModalOpen}
                                         handleCompleteRequest={handleCompleteRequest}
+                                        onViewProfile={handleViewProfile}
                                     />
                                 ))}
                             </div>
@@ -409,7 +435,9 @@ function ProfilePageContent() {
                                         setRevieweeId={setRevieweeId}
                                         setReviewTransaction={setReviewTransaction}
                                         setIsReviewModalOpen={setIsReviewModalOpen}
+                                        setIsReviewModalOpen={setIsReviewModalOpen}
                                         handleCompleteRequest={handleCompleteRequest}
+                                        onViewProfile={handleViewProfile}
                                     />
                                 ))}
                             </div>
@@ -472,6 +500,12 @@ function ProfilePageContent() {
                    }
                 }}
                revieweeId={revieweeId}
+            />
+
+            <PublicProfileModal
+                user={viewingUser}
+                isOpen={isPublicProfileOpen}
+                onClose={() => setPublicProfileOpen(false)}
             />
         </div>
     );

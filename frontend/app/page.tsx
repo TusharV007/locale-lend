@@ -185,7 +185,7 @@ export default function Home() {
   };
 
   // Sort and filter items for display (exluding unavailable items)
-  const sortedItems = [...nearbyItems]
+  const sortedItems = [...(Array.isArray(nearbyItems) ? nearbyItems : [])]
     .filter(item => item.status === 'available' || !item.status)
     .filter(item => {
       if (sortBy === 'distance') {

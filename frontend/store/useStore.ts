@@ -12,7 +12,7 @@ interface AppState {
   
   // Nearby items from geospatial query
   nearbyItems: Item[];
-  setNearbyItems: (items: Item[]) => void;
+  setNearbyItems: (items: Item[] | ((prev: Item[]) => Item[])) => void;
   
   // Selected item for detail view
   selectedItem: Item | null;
@@ -51,7 +51,9 @@ export const useStore = create<AppState>((set) => ({
   setCurrentUser: (user) => set({ currentUser: user }),
   
   nearbyItems: [],
-  setNearbyItems: (items) => set({ nearbyItems: items }),
+  setNearbyItems: (items) => set((state) => ({ 
+    nearbyItems: typeof items === 'function' ? items(state.nearbyItems) : items 
+  })),
   
   selectedItem: null,
   setSelectedItem: (item) => set({ selectedItem: item }),
