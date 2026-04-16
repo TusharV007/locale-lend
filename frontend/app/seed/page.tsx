@@ -22,7 +22,7 @@ const CITIES = [
   { name: 'Madurai', lat: 9.9252 + (Math.random() - 0.5) * 0.1, lng: 78.1198 + (Math.random() - 0.5) * 0.1 },
 ];
 
-const CATEGORIES = ['Tools', 'Electronics', 'Kitchen', 'Outdoor', 'Books', 'Sports'];
+const CATEGORIES = ['Tools', 'Electronics', 'Kitchen', 'Outdoor', 'Books', 'Gaming', 'Board Games', 'Sports', 'Construction'];
 const CONDITIONS = ['new', 'like_new', 'good', 'fair'];
 
 const TITLES: Record<string, string[]> = {
@@ -30,8 +30,11 @@ const TITLES: Record<string, string[]> = {
   Electronics: ['DSLR Camera', 'Projector', 'Bluetooth Speaker', 'Drone', 'Gaming Console', 'Tablet'],
   Kitchen: ['Stand Mixer', 'Air Fryer', 'Food Processor', 'Juicer', 'Pasta Maker', 'BBQ Grill'],
   Outdoor: ['Tent 4-person', 'Camping Chair', 'Sleeping Bag', 'Cooler', 'Camping Stove', 'Trekking Poles'],
-  Books: ['Harry Potter Box Set', 'Cookbook Collection', 'Board Game - Catan', 'Scrabble', 'Chess Set', 'Lord of the Rings'],
-  Sports: ['Tennis Racket', 'Cricket Bat', 'Football', 'Yoga Mat', 'Dumbbells', 'Bicycle']
+  Books: ['Harry Potter Box Set', 'Cookbook Collection', 'The Hobbit', 'National Geographic', 'Lord of the Rings'],
+  Gaming: ['Nintendo Switch', 'Xbox Series X', 'PlayStation 5', 'Gaming Headset', 'Video Game - Elden Ring'],
+  "Board Games": ['Catan', 'Scrabble', 'Chess Set', 'Monopoly', 'Pandemic'],
+  Sports: ['Tennis Racket', 'Cricket Bat', 'Football', 'Yoga Mat', 'Dumbbells', 'Bicycle'],
+  Construction: ['Cement Mixer', 'Step Ladder', 'Scaffolding', 'Pressure Washer', 'Wheelbarrow', 'Extension Cord']
 };
 
 const ITEM_PHOTOS: Record<string, string> = {
@@ -63,13 +66,24 @@ const ITEM_PHOTOS: Record<string, string> = {
   'Cooler': 'https://images.unsplash.com/photo-1603561334651-4043b276ba61?w=800&q=80',
   'Camping Stove': 'https://images.unsplash.com/photo-1496080174650-637e3f22fa03?w=800&q=80',
   'Trekking Poles': 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80',
-  // Books & Games
+  // Books
   'Harry Potter Box Set': 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&q=80',
   'Cookbook Collection': 'https://images.unsplash.com/photo-1589998059171-988d887df646?w=800&q=80',
-  'Board Game - Catan': 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=800&q=80',
+  'The Hobbit': 'https://images.unsplash.com/photo-1621350117465-b17b20466311?w=800&q=80',
+  'National Geographic': 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&q=80',
+  'Lord of the Rings': 'https://images.unsplash.com/photo-1626618012641-bfca5a31239?w=800&q=80',
+  // Gaming
+  'Nintendo Switch': 'https://images.unsplash.com/photo-1578303321116-b184af6fa39e?w=800&q=80',
+  'Xbox Series X': 'https://images.unsplash.com/photo-1605906302474-f808a68462ef?w=800&q=80',
+  'PlayStation 5': 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&q=80',
+  'Gaming Headset': 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800&q=80',
+  'Video Game - Elden Ring': 'https://images.unsplash.com/photo-1621259182978-fbf93132d53d?w=800&q=80',
+  // Board Games
+  'Catan': 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=800&q=80',
   'Scrabble': 'https://images.unsplash.com/photo-1591154669695-5f2a8d20c089?w=800&q=80',
   'Chess Set': 'https://images.unsplash.com/photo-1528819622765-d6bcf132f793?w=800&q=80',
-  'Lord of the Rings': 'https://images.unsplash.com/photo-1626618012641-bfbca5a31239?w=800&q=80',
+  'Monopoly': 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=800&q=80',
+  'Pandemic': 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=800&q=80',
   // Sports
   'Tennis Racket': 'https://images.unsplash.com/photo-1595435066963-0bc6988294b4?w=800&q=80',
   'Cricket Bat': 'https://images.unsplash.com/photo-1531415074941-6ef21368538a?w=800&q=80',
@@ -132,7 +146,8 @@ function generateRandomItem(id: string) {
       coordinates: [lng, lat],
     },
     status: Math.random() > 0.1 ? 'available' : 'unavailable',
-    rentalPricePerDay: Math.random() > 0.6 ? Math.floor(Math.random() * 50) * 10 : 0,
+    rentalPrice: Math.floor(Math.random() * 50) * 10,
+    priceUnit: Math.random() > 0.5 ? 'day' : 'hour',
     borrowCount: Math.floor(Math.random() * 10),
     createdAt: Timestamp.fromMillis(Date.now() - Math.floor(Math.random() * 10000000000)),
     updatedAt: Timestamp.now(),

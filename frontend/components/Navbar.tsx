@@ -55,21 +55,21 @@ export function Navbar({ className, onAddItemClick, onSearch }: NavbarProps) {
             </span>
           </div>
 
-          {/* Search Bar - Centered */}
           <div className="flex-1 max-w-md hidden md:block relative">
             <form onSubmit={(e) => {
               e.preventDefault();
-              const input = e.currentTarget.querySelector('input');
+              const input = (e.currentTarget.elements.namedItem('search') as HTMLInputElement);
               if (input?.value.trim()) {
-                router.push(`/search?q=${encodeURIComponent(input.value)}`);
+                router.push(`/search?q=${encodeURIComponent(input.value.trim())}`);
               }
             }} className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <input
+                name="search"
                 type="text"
                 placeholder="Search items..."
                 className="w-full bg-secondary/50 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 transition-all"
-                defaultValue={onSearch ? '' : undefined}
+                onChange={(e) => onSearch?.(e.target.value)}
               />
             </form>
           </div>

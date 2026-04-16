@@ -27,7 +27,7 @@ import { useRouter } from 'next/navigation';
 import LandingPage from '@/app/landing/page';
 import { PublicProfileModal } from '@/components/PublicProfileModal';
 
-const RADIUS_LIMIT_METERS = 500000; // 500km
+const RADIUS_LIMIT_METERS = 15000; // 15km
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
@@ -36,7 +36,6 @@ export default function Home() {
   const lastDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<'distance' | 'newest' | 'popular'>('distance');
 
@@ -58,14 +57,13 @@ export default function Home() {
 
   const fetchItemsData = async (
     location: GeoJSONPoint | null = userLocation,
-    reset = true,
-    queryText = ''
+    reset = true
   ) => {
     try {
       setLoadingMore(true);
       const { fetchItems } = await import('@/lib/db');
       const lastDoc = reset ? null : lastDocRef.current;
-      const result = await fetchItems(12, queryText, lastDoc);
+      const result = await fetchItems(12, '', lastDoc);
 
       const realItemsWithDistance = result.items.map(item => {
         const itemWithDistance = { ...item, distance: 0 };
@@ -92,7 +90,7 @@ export default function Home() {
   };
 
   const handleLoadMore = () => {
-    fetchItemsData(userLocation, false, searchQuery);
+    fetchItemsData(userLocation, false);
   };
 
 
@@ -127,7 +125,11 @@ export default function Home() {
                const isNearby = (item.distance || 0) <= RADIUS_LIMIT_METERS;
                const isAvailable = item.status === 'available' || !item.status;
                const matchesCategory = !selectedCategory || item.category === selectedCategory;
-               return isNearby && isAvailable && matchesCategory;
+               
+               if (sortBy === 'distance') {
+                 return isNearby && isAvailable && matchesCategory;
+               }
+               return isAvailable && matchesCategory;
              });
 
            setMapItems(filteredMapItems);
@@ -144,19 +146,12 @@ export default function Home() {
     return () => {
         if (itemsUnsubscribe) itemsUnsubscribe();
     }
-  }, [user, selectedCategory, requestUserLocation, userLocation]);
+  }, [user, selectedCategory, requestUserLocation, userLocation, sortBy]);
 
   useEffect(() => {
     if (!user) return;
-    const timer = setTimeout(() => {
-      fetchItemsData(userLocation, true, searchQuery);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [user, searchQuery, selectedCategory, userLocation]);
-
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-  };
+    fetchItemsData(userLocation, true);
+  }, [user, selectedCategory, userLocation]);
 
   const handleExploreClick = () => {
     const mapSection = document.getElementById('map-section');
@@ -192,7 +187,12 @@ export default function Home() {
   // Sort and filter items for display (exluding unavailable items)
   const sortedItems = [...nearbyItems]
     .filter(item => item.status === 'available' || !item.status)
-    .filter(item => (item.distance || 0) <= RADIUS_LIMIT_METERS)
+    .filter(item => {
+      if (sortBy === 'distance') {
+        return (item.distance || 0) <= RADIUS_LIMIT_METERS;
+      }
+      return true;
+    })
     .filter(item => !selectedCategory || item.category === selectedCategory)
     .sort((a, b) => {
     // Priority 1: Available items first
@@ -229,7 +229,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar onAddItemClick={() => setIsAddItemModalOpen(true)} onSearch={handleSearch} />
+      <Navbar onAddItemClick={() => setIsAddItemModalOpen(true)} />
 
       {/* Hero Section */}
       <HeroSection onExploreClick={handleExploreClick} />
@@ -285,13 +285,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border rounded-xl p-4">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">
-                  {searchQuery ? (
-                    <>
-                      Search results for <span className="text-primary font-semibold">"{searchQuery}"</span>
-                    </>
-                  ) : (
-                    <>Items Near You</>
-                  )}
+                  Items Near You
                 </p>
                 <p className="text-xs text-muted-foreground">
                   <span className="font-semibold text-foreground">{sortedItems.length}</span> items found
@@ -311,7 +305,7 @@ export default function Home() {
                     className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
                   >
                     <option value="distance">Nearest</option>
-                    <option value="newest">Newest</option>
+                    <option value="newest">All</option>
                     <option value="popular">Popular</option>
                   </select>
                 </div>
@@ -375,21 +369,18 @@ export default function Home() {
               >
                 <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {searchQuery ? 'No items found' : 'No items available'}
+                  No items available
                 </h3>
                 <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  {searchQuery ? (
-                    <>Try adjusting your filters or search for something different.</>
-                  ) : selectedCategory ? (
+                  {selectedCategory ? (
                     <>No items in this category right now. Check back later or browse all items.</>
                   ) : (
                     <>Be the first to list an item in your neighborhood!</>
                   )}
                 </p>
-                {(searchQuery || selectedCategory) && (
+                {selectedCategory && (
                   <button
                     onClick={() => {
-                      setSearchQuery('');
                       setSelectedCategory(null);
                     }}
                     className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"

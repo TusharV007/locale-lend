@@ -181,8 +181,9 @@ export default function MessagesPage() {
                     itemId={paymentRequest.itemId}
                     lenderId={paymentRequest.lenderId}
                     lenderName={paymentRequest.lenderName}
-                    rentalPricePerDay={paymentRequest.rentalPricePerDay}
-                    rentalDays={paymentRequest.rentalDays}
+                    priceUnit={paymentRequest.priceUnit}
+                    selectedPrice={paymentRequest.selectedPrice}
+                    duration={paymentRequest.duration}
                     onSuccess={() => {
                         setPaymentRequest(null);
                         fetchRequests();
@@ -266,12 +267,10 @@ const RequestCard = ({
                         }
                     </p>
 
-                    {request.rentalPricePerDay !== undefined && request.rentalPricePerDay > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                            <IndianRupee className="w-3 h-3" />
-                            {request.rentalPricePerDay}/day rental • {request.rentalDays || 1} {request.rentalDays === 1 ? 'day' : 'days'}
-                        </p>
-                    )}
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <IndianRupee className="w-3 h-3" />
+                        {request.selectedPrice}/{request.priceUnit === 'day' ? 'day' : 'hr'} rental • {request.duration} {request.priceUnit === 'day' ? (request.duration === 1 ? 'day' : 'days') : (request.duration === 1 ? 'hour' : 'hours')}
+                    </p>
 
                     {request.message && (
                         <div className="mt-3 bg-secondary/50 p-3 rounded-lg text-sm italic text-muted-foreground">
@@ -292,7 +291,7 @@ const RequestCard = ({
                             className="flex-1 md:flex-none bg-green-600 hover:bg-green-700 text-white"
                         >
                             <IndianRupee className="w-4 h-4 mr-1" />
-                            {request.rentalPricePerDay ? `Pay ₹${request.rentalPricePerDay}` : 'Confirm Borrow'}
+                            {request.selectedPrice ? `Pay ₹${request.selectedPrice * (request.duration || 1)}` : (request.rentalPricePerDay ? `Pay ₹${request.rentalPricePerDay}` : 'Confirm Borrow')}
                         </Button>
                     )}
 

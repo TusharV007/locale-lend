@@ -222,7 +222,7 @@ export const addItem = async (item: Omit<Item, "id" | "createdAt" | "distance" |
 
 export const updateItem = async (
     itemId: string,
-    fields: Partial<{ title: string; description: string; category: string; images: string[]; rentalPricePerDay: number; location: GeoJSONPoint }>
+    fields: Partial<{ title: string; description: string; category: string; images: string[]; rentalPrice: number; priceUnit: 'hour' | 'day'; location: GeoJSONPoint }>
 ) => {
     try {
         const docRef = doc(db, ITEMS_COLLECTION, itemId);
@@ -420,8 +420,9 @@ export interface RequestData {
     message: string;
     status: 'pending' | 'accepted' | 'rejected' | 'completed';
     paymentStatus?: 'unpaid' | 'paid';
-    rentalPricePerDay?: number;
-    rentalDays?: number;
+    priceUnit: 'hour' | 'day';
+    selectedPrice: number;
+    duration: number;
     createdAt: Date;
 }
 
@@ -455,7 +456,10 @@ export const createRequest = async (request: Omit<RequestData, "id" | "createdAt
                 console.warn(`[Email] Lender profile found but has no email address. Email skipped.`);
             } else {
                 console.log(`[Email] Sending NEW_REQUEST email to: ${lenderProfile.email}`);
-                const amount = (request.rentalPricePerDay || 0) * (request.rentalDays || 1);
+                const price = request.selectedPrice || request.rentalPricePerDay || 0;
+                const dur = request.duration || request.rentalDays || 1;
+                const unit = request.priceUnit || 'day';
+                const amount = price * dur;
                 
                 const response = await fetch('/api/emails', {
                     method: 'POST',
@@ -467,7 +471,8 @@ export const createRequest = async (request: Omit<RequestData, "id" | "createdAt
                             borrowerName: request.borrowerName,
                             itemTitle: request.itemTitle,
                             requestId: docRef.id,
-                            amount
+                            amount,
+                            unit: unit
                         }
                     })
                 });

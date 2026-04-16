@@ -17,8 +17,9 @@ interface PaymentModalProps {
     itemId: string;
     lenderId: string;
     lenderName: string;
-    rentalPricePerDay?: number;
-    rentalDays?: number;
+    priceUnit: 'hour' | 'day';
+    selectedPrice: number;
+    duration: number;
     onSuccess: () => void;
 }
 
@@ -40,8 +41,9 @@ export function PaymentModal({
     itemId,
     lenderId,
     lenderName,
-    rentalPricePerDay = 0,
-    rentalDays = 1,
+    priceUnit,
+    selectedPrice,
+    duration,
     onSuccess,
 }: PaymentModalProps) {
     const { user } = useAuth();
@@ -51,7 +53,9 @@ export function PaymentModal({
 
     useEffect(() => { setMounted(true); }, []);
 
-    const amount = (rentalPricePerDay > 0 ? rentalPricePerDay : 0) * (rentalDays > 0 ? rentalDays : 1);
+    const finalPrice = selectedPrice;
+    const finalDuration = duration;
+    const amount = finalPrice * finalDuration;
 
     const handlePay = async () => {
         if (!user) return;
@@ -217,10 +221,10 @@ export function PaymentModal({
                                     <div className="flex justify-between items-center text-sm text-muted-foreground">
                                         <span>To: {lenderName}</span>
                                     </div>
-                                    {rentalDays && rentalDays > 1 && rentalPricePerDay && rentalPricePerDay > 0 && (
+                                    {finalDuration && finalDuration > 0 && finalPrice && finalPrice > 0 && (
                                         <div className="flex justify-between items-center text-sm text-muted-foreground mt-1">
-                                            <span>Duration: {rentalDays} days</span>
-                                            <span>(₹{rentalPricePerDay}/day)</span>
+                                            <span>Duration: {finalDuration} {priceUnit === 'day' ? (finalDuration === 1 ? 'day' : 'days') : (finalDuration === 1 ? 'hour' : 'hours')}</span>
+                                            <span>(₹{finalPrice}/{priceUnit === 'day' ? 'day' : 'hr'})</span>
                                         </div>
                                     )}
                                     <div className="border-t pt-3 flex justify-between items-center">

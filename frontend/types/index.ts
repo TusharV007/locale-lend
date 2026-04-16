@@ -1,7 +1,7 @@
 // Local Share Type Definitions
 // These types mirror what would be Mongoose schemas in a full-stack app
 
-export type ItemCategory = 'Tools' | 'Electronics' | 'Kitchen' | 'Outdoor' | 'Books' | 'Sports' | 'Construction' | 'Gardening' | 'Party' | 'Toys' | 'Clothing' | 'Musical' | 'Health' | 'Home';
+export type ItemCategory = 'Tools' | 'Electronics' | 'Kitchen' | 'Outdoor' | 'Books' | 'Gaming' | 'Board Games' | 'Sports' | 'Construction';
 
 export type AvailabilityStatus = 'Available' | 'Borrowed' | 'Reserved' | 'Unavailable';
 
@@ -65,7 +65,8 @@ export interface Item {
   createdAt: Date;
   status: 'available' | 'lended' | 'unavailable';
   borrowCount: number;
-  rentalPricePerDay?: number; // 0 = free sharing
+  rentalPrice: number; // 0 = free sharing
+  priceUnit: 'hour' | 'day';
 }
 
 // Booking schema - represents a lending transaction
@@ -82,6 +83,9 @@ export interface Request {
     start: Date;
     end: Date;
   };
+  duration: number; // number of hours or days
+  priceUnit: 'hour' | 'day';
+  selectedPrice: number;
   message: string;
   paymentStatus?: 'pending' | 'paid' | 'refunded';
   createdAt: Date;

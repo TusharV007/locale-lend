@@ -206,7 +206,13 @@ export function ItemCard({
                         onRequestClick(item);
                       }}
                     >
-                      {isOwner ? 'Your Item' : ((item as any).rentalPricePerDay > 0 ? `₹${(item as any).rentalPricePerDay}/day` : 'Request')}
+                      {isOwner ? 'Your Item' : (
+                        item.rentalPrice > 0 ? (
+                          <div className="flex flex-col items-center leading-tight">
+                            <span className="text-[10px] xsm:text-xs">₹{item.rentalPrice}/{item.priceUnit === 'day' ? 'day' : 'hr'}</span>
+                          </div>
+                        ) : 'Request'
+                      )}
                     </Button>
                   )}
                 </div>

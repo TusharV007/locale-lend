@@ -23,7 +23,7 @@ interface AddItemModalProps {
     adminMode?: boolean;
 }
 
-const CATEGORIES: ItemCategory[] = ['Tools', 'Electronics', 'Kitchen', 'Outdoor', 'Books', 'Sports', 'Construction', 'Gardening', 'Party', 'Toys', 'Clothing', 'Musical', 'Health', 'Home'];
+const CATEGORIES: ItemCategory[] = ['Tools', 'Electronics', 'Kitchen', 'Outdoor', 'Books', 'Gaming', 'Board Games', 'Sports', 'Construction'];
 
 export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, adminMode = false }: AddItemModalProps) {
     const { user: authUser } = useAuth();
@@ -44,13 +44,15 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
         description: string;
         category: ItemCategory;
         image: string;
-        rentalPricePerDay: number;
+        rentalPrice: number;
+        priceUnit: 'hour' | 'day';
     }>({
         title: '',
         description: '',
         category: 'Tools',
         image: '',
-        rentalPricePerDay: 1,
+        rentalPrice: 1,
+        priceUnit: 'day',
     });
 
     // Pre-fill form when editing
@@ -85,7 +87,8 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                 description: editItem.description || '',
                 category: editItem.category || 'Tools',
                 image: editItem.images?.[0] || '',
-                rentalPricePerDay: (editItem as any).rentalPricePerDay || 1,
+                rentalPrice: editItem.rentalPrice || 1,
+                priceUnit: editItem.priceUnit || 'day',
             });
             if (editItem.location) {
                 setLocation(editItem.location);
@@ -94,7 +97,7 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                 setSelectedOwnerId(editItem.ownerId);
             }
         } else {
-            setFormData({ title: '', description: '', category: 'Tools', image: '', rentalPricePerDay: 1 });
+            setFormData({ title: '', description: '', category: 'Tools', image: '', rentalPrice: 1, priceUnit: 'day' });
             setLocation(null);
             setLocationError(null);
             if (!adminMode) setSelectedOwnerId(authUser?.uid || '');
@@ -236,7 +239,8 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                     distance: 0,
                     images: [finalImageUrl],
                     borrowCount: 0,
-                    rentalPricePerDay: formData.rentalPricePerDay,
+                    rentalPrice: formData.rentalPrice,
+                    priceUnit: formData.priceUnit,
                     createdAt: new Date().toISOString()
                 };
                 await addItem(newItem);
@@ -369,23 +373,38 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                                     />
                                 </div>
 
-                                {/* Rental Price */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="rentalPrice">Rental Price per Day (₹)</Label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
-                                        <Input
-                                            id="rentalPrice"
-                                            type="number"
-                                            value={formData.rentalPricePerDay}
-                                            onChange={e => setFormData({ ...formData, rentalPricePerDay: parseFloat(e.target.value) })}
-                                            className="pl-7"
-                                            placeholder="Enter amount"
-                                            required
-                                        />
+                                 {/* Rental Prices */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="rentalPrice">Rental Price (₹)</Label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                                            <Input
+                                                id="rentalPrice"
+                                                type="number"
+                                                value={formData.rentalPrice}
+                                                onChange={e => setFormData({ ...formData, rentalPrice: parseFloat(e.target.value) })}
+                                                className="pl-7"
+                                                placeholder="Amount"
+                                                required
+                                            />
+                                        </div>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">Minimum price is ₹1 per day</p>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="priceUnit">Unit</Label>
+                                        <select
+                                            id="priceUnit"
+                                            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                            value={formData.priceUnit}
+                                            onChange={e => setFormData({ ...formData, priceUnit: e.target.value as 'hour' | 'day' })}
+                                        >
+                                            <option value="day">per day</option>
+                                            <option value="hour">per hour</option>
+                                        </select>
+                                    </div>
                                 </div>
+                                <p className="text-[10px] text-muted-foreground mt-1">Lend your item at a fair price for the community.</p>
+
 
                                 {/* Location */}
                                 <div className="space-y-2">

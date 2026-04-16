@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Wrench, Laptop, ChefHat, Tent, BookOpen, Bike, Hammer, Sprout, PartyPopper, Gamepad2, Shirt, Music, Dumbbell, Home } from 'lucide-react';
+import { Wrench, Laptop, ChefHat, Tent, BookOpen, Gamepad2, Dices, Bike, Hammer } from 'lucide-react';
 import { categoryConfig } from '@/lib/constants';
 import type { ItemCategory } from '@/types';
 import { cn } from '@/lib/utils';
@@ -9,16 +9,11 @@ const categories: { id: ItemCategory; label: string; icon: React.ComponentType<{
   { id: 'Electronics', label: 'Electronics', icon: Laptop },
   { id: 'Kitchen', label: 'Kitchen', icon: ChefHat },
   { id: 'Outdoor', label: 'Outdoor', icon: Tent },
-  { id: 'Books', label: 'Books & Games', icon: BookOpen },
+  { id: 'Books', label: 'Books', icon: BookOpen },
+  { id: 'Gaming', label: 'Gaming', icon: Gamepad2 },
+  { id: 'Board Games', label: 'Board Games', icon: Dices },
   { id: 'Sports', label: 'Sports', icon: Bike },
   { id: 'Construction', label: 'Construction', icon: Hammer },
-  { id: 'Gardening', label: 'Gardening', icon: Sprout },
-  { id: 'Party', label: 'Party & Events', icon: PartyPopper },
-  { id: 'Toys', label: 'Toys & Kids', icon: Gamepad2 },
-  { id: 'Clothing', label: 'Clothing', icon: Shirt },
-  { id: 'Musical', label: 'Musical Instruments', icon: Music },
-  { id: 'Health', label: 'Health & Fitness', icon: Dumbbell },
-  { id: 'Home', label: 'Home Decor', icon: Home },
 ];
 
 interface CategoryFilterProps {

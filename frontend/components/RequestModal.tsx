@@ -6,6 +6,7 @@ import type { Item } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { createRequest } from '@/lib/db';
+import { cn } from '@/lib/utils';
 
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -19,7 +20,8 @@ interface RequestModalProps {
 export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalProps) {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
-  const [rentalDays, setRentalDays] = useState(1);
+  const [duration, setDuration] = useState(1);
+  const [priceUnit, setPriceUnit] = useState<'hour' | 'day'>(item?.priceUnit || 'day');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageError, setImageError] = useState(false);
 
@@ -36,18 +38,16 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
         lenderId: item.owner.id,
         lenderName: item.owner.name,
         message: message,
-        rentalDays: rentalDays
+        duration: duration,
+        priceUnit: item.priceUnit,
+        selectedPrice: item.rentalPrice
       };
-
-      if (item.rentalPricePerDay) {
-          requestData.rentalPricePerDay = item.rentalPricePerDay;
-      }
 
       await createRequest(requestData);
 
       onSubmit(message);
       setMessage('');
-      setRentalDays(1);
+      setDuration(1);
       onClose();
     } catch (error) {
       console.error('Request failed:', error);
@@ -147,37 +147,46 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
               </div>
 
               {/* Rental Duration input */}
-              <div className="space-y-2">
-                <label className="flex flex-col text-sm font-medium text-card-foreground">
-                  <span className="flex items-center gap-2">
+              <div className="space-y-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-card-foreground flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Rental Duration
-                  </span>
-                  {item.rentalPricePerDay ? (
-                    <span className="text-xs text-muted-foreground mt-0.5">
-                      ₹{item.rentalPricePerDay}/day • Total: ₹{(item.rentalPricePerDay * rentalDays).toFixed(2)}
-                    </span>
-                  ) : null}
-                </label>
-                <div className="flex items-center gap-3">
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => setRentalDays(Math.max(1, rentalDays - 1))}
-                    disabled={rentalDays <= 1}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  <div className="w-16 text-center font-medium text-lg">
-                    {rentalDays} {rentalDays === 1 ? 'day' : 'days'}
+                    Rental Rate
+                  </label>
+                  <div className="bg-secondary p-3 rounded-xl border border-secondary">
+                    <div className="text-sm font-bold text-foreground">
+                      ₹{item.rentalPrice} per {item.priceUnit === 'day' ? 'day' : 'hour'}
+                    </div>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => setRentalDays(Math.min(30, rentalDays + 1))}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex flex-col text-sm font-medium text-card-foreground">
+                    <span>Duration ({item.priceUnit === 'day' ? 'Days' : 'Hours'})</span>
+                    <span className="text-xs text-muted-foreground mt-0.5">
+                      Total: ₹{(item.rentalPrice * duration).toFixed(2)}
+                    </span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => setDuration(Math.max(1, duration - 1))}
+                      disabled={duration <= 1}
+                    >
+                      <Minus className="w-4 h-4" />
+                    </Button>
+                    <div className="w-24 text-center font-medium text-lg">
+                      {duration} {priceUnit === 'day' ? (duration === 1 ? 'day' : 'days') : (duration === 1 ? 'hour' : 'hours')}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => setDuration(Math.min(item.priceUnit === 'day' ? 30 : 48, duration + 1))}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 

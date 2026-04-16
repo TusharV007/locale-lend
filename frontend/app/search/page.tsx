@@ -102,6 +102,12 @@ function SearchPageContent() {
     const filteredItems = items
         .filter(item => item.owner.id !== user?.uid)
         .filter(item => item.status === 'available' || !item.status)
+        .filter(item => {
+            if (sortBy === 'distance') {
+                return (item.distance || 0) <= 15000;
+            }
+            return true;
+        })
         .filter(item => selectedCategory ? item.category === selectedCategory : true);
 
     const sortedItems = [...filteredItems].sort((a, b) => {
@@ -199,7 +205,7 @@ function SearchPageContent() {
                                 onChange={(e) => setSortBy(e.target.value as any)}
                                 className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
                             >
-                                <option value="newest">Newest</option>
+                                <option value="newest">All</option>
                                 <option value="distance">Nearest</option>
                                 <option value="popular">Popular</option>
                             </select>
