@@ -38,7 +38,7 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
 
   // Calculate rate based on conversion
   const getRate = () => {
-    if (!item) return 0;
+    if (!item || typeof item.rentalPrice !== 'number') return 0;
     if (priceUnit === item.priceUnit) return item.rentalPrice;
     // Conversion: 1 Day = 24 Hours
     if (priceUnit === 'day' && item.priceUnit === 'hour') return item.rentalPrice * 24;
@@ -159,7 +159,7 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
                   <div className="flex items-center gap-3 mt-1">
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4 text-accent fill-accent" />
-                      <span className="text-sm font-medium">{item.owner.trustScore.toFixed(1)}</span>
+                      <span className="text-sm font-medium">{(item.owner.trustScore || 0).toFixed(1)}</span>
                     </div>
                     <span className="text-sm text-muted-foreground">
                       {item.owner.itemsLentCount} items shared
@@ -207,7 +207,7 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
                   </div>
                   <div className="bg-secondary p-3 rounded-xl border border-secondary flex justify-between items-center">
                     <div className="text-sm font-bold text-foreground">
-                      ₹{currentRate.toFixed(2)} per {priceUnit}
+                      ₹{(currentRate || 0).toFixed(2)} per {priceUnit}
                     </div>
                     {priceUnit !== item.priceUnit && (
                         <span className="text-[10px] text-muted-foreground italic">
@@ -221,7 +221,7 @@ export function RequestModal({ item, isOpen, onClose, onSubmit }: RequestModalPr
                   <label className="flex flex-col text-sm font-medium text-card-foreground">
                     <span>Duration ({priceUnit === 'day' ? 'Days' : 'Hours'})</span>
                     <span className="text-xs font-bold text-primary mt-0.5">
-                      Total: ₹{totalPrice.toFixed(2)}
+                      Total: ₹{(totalPrice || 0).toFixed(2)}
                     </span>
                   </label>
                   <div className="flex items-center gap-3">

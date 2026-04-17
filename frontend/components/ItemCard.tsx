@@ -141,7 +141,7 @@ export function ItemCard({
                     <div className="flex items-center gap-1 shrink-0">
                       <Star className="w-3 h-3 text-accent fill-accent" />
                       <span className="text-xs text-muted-foreground">
-                        {item.owner.trustScore.toFixed(1)}
+                        {(item.owner.trustScore || 0).toFixed(1)}
                       </span>
                     </div>
                   </div>
