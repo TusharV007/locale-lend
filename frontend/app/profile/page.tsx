@@ -106,10 +106,10 @@ const HistoryCard = ({
                     {item.status}
                 </Badge>
             </div>
-            {item.rentalPricePerDay !== undefined && item.rentalPricePerDay > 0 && (
+            {item.rentalPrice !== undefined && item.rentalPrice > 0 && (
                 <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
                     <IndianRupee className="w-3 h-3" />
-                    {item.rentalPricePerDay}/day
+                    {item.rentalPrice}/{item.priceUnit === 'hour' ? 'hr' : 'day'}
                 </div>
             )}
             {item.paymentStatus === 'paid' && (

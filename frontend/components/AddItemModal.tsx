@@ -195,7 +195,8 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                     title: formData.title,
                     description: formData.description,
                     category: formData.category,
-                    rentalPricePerDay: formData.rentalPricePerDay,
+                    rentalPrice: formData.rentalPrice,
+                    priceUnit: formData.priceUnit,
                 };
                 
                 if (finalImageUrl && finalImageUrl !== editItem.images?.[0]) {
@@ -382,8 +383,11 @@ export function AddItemModal({ isOpen, onClose, onSuccess, editItem = null, admi
                                             <Input
                                                 id="rentalPrice"
                                                 type="number"
-                                                value={formData.rentalPrice}
-                                                onChange={e => setFormData({ ...formData, rentalPrice: parseFloat(e.target.value) })}
+                                                value={isNaN(formData.rentalPrice) ? '' : formData.rentalPrice}
+                                                onChange={e => {
+                                                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                    setFormData({ ...formData, rentalPrice: val });
+                                                }}
                                                 className="pl-7"
                                                 placeholder="Amount"
                                                 required

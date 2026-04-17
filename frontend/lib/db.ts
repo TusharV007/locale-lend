@@ -120,6 +120,9 @@ export const subscribeUserLendingHistory = (userId: string, callback: (history: 
                 otherPartyName: data.borrowerName,
                 status: data.status,
                 paymentStatus: data.paymentStatus,
+                rentalPrice: data.selectedPrice || data.rentalPricePerDay,
+                priceUnit: data.priceUnit || 'day',
+                duration: data.duration || data.rentalDays,
                 rentalPricePerDay: data.rentalPricePerDay,
                 rentalDays: data.rentalDays,
                 createdAt: parseDate(data.createdAt),
@@ -659,8 +662,11 @@ export interface HistoryItem {
     otherPartyName: string;
     status: 'pending' | 'accepted' | 'rejected' | 'completed';
     paymentStatus?: 'unpaid' | 'paid';
-    rentalPricePerDay?: number;
-    rentalDays?: number;
+    rentalPrice?: number;
+    priceUnit?: 'hour' | 'day';
+    duration?: number;
+    rentalPricePerDay?: number; // legacy
+    rentalDays?: number; // legacy
     createdAt: Date;
 }
 
@@ -695,6 +701,9 @@ export const fetchUserLendingHistory = async (userId: string): Promise<HistoryIt
                 otherPartyName: data.borrowerName,
                 status: data.status,
                 paymentStatus: data.paymentStatus,
+                rentalPrice: data.selectedPrice || data.rentalPricePerDay,
+                priceUnit: data.priceUnit || 'day',
+                duration: data.duration || data.rentalDays,
                 rentalPricePerDay: data.rentalPricePerDay,
                 rentalDays: data.rentalDays,
                 createdAt: parseDate(data.createdAt),
@@ -712,7 +721,12 @@ export const fetchUserLendingHistory = async (userId: string): Promise<HistoryIt
                 return {
                     requestId: d.id, itemId: data.itemId, itemTitle: data.itemTitle,
                     otherPartyId: data.borrowerId, otherPartyName: data.borrowerName, status: data.status,
-                    paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay, rentalDays: data.rentalDays,
+                    paymentStatus: data.paymentStatus, 
+                    rentalPrice: data.selectedPrice || data.rentalPricePerDay,
+                    priceUnit: data.priceUnit || 'day',
+                    duration: data.duration || data.rentalDays,
+                    rentalPricePerDay: data.rentalPricePerDay, 
+                    rentalDays: data.rentalDays,
                     createdAt: parseDate(data.createdAt)
                 } as HistoryItem;
             });
@@ -752,6 +766,9 @@ export const fetchUserBorrowingHistory = async (userId: string): Promise<History
                 otherPartyName: data.lenderName,
                 status: data.status,
                 paymentStatus: data.paymentStatus,
+                rentalPrice: data.selectedPrice || data.rentalPricePerDay,
+                priceUnit: data.priceUnit || 'day',
+                duration: data.duration || data.rentalDays,
                 rentalPricePerDay: data.rentalPricePerDay,
                 rentalDays: data.rentalDays,
                 createdAt: parseDate(data.createdAt),
@@ -768,7 +785,12 @@ export const fetchUserBorrowingHistory = async (userId: string): Promise<History
                 return {
                     requestId: d.id, itemId: data.itemId, itemTitle: data.itemTitle,
                     otherPartyId: data.lenderId, otherPartyName: data.lenderName, status: data.status,
-                    paymentStatus: data.paymentStatus, rentalPricePerDay: data.rentalPricePerDay, rentalDays: data.rentalDays,
+                    paymentStatus: data.paymentStatus, 
+                    rentalPrice: data.selectedPrice || data.rentalPricePerDay,
+                    priceUnit: data.priceUnit || 'day',
+                    duration: data.duration || data.rentalDays,
+                    rentalPricePerDay: data.rentalPricePerDay, 
+                    rentalDays: data.rentalDays,
                     createdAt: parseDate(data.createdAt)
                 } as HistoryItem;
             });

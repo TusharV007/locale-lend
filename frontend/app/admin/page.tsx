@@ -155,8 +155,8 @@ export default function AdminDashboard() {
                   <p className="text-xs text-gray-400 mt-0.5">{item.category}</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-bold block">₹{item.rentalPricePerDay}</span>
-                  <span className="text-[10px] text-gray-500">/ day</span>
+                  <span className="text-sm font-bold block">₹{item.rentalPrice || item.rentalPricePerDay}</span>
+                  <span className="text-[10px] text-gray-500">/ {item.priceUnit || 'day'}</span>
                 </div>
               </div>
             ))}

@@ -269,7 +269,7 @@ const RequestCard = ({
 
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                         <IndianRupee className="w-3 h-3" />
-                        {request.selectedPrice}/{request.priceUnit === 'day' ? 'day' : 'hr'} rental • {request.duration} {request.priceUnit === 'day' ? (request.duration === 1 ? 'day' : 'days') : (request.duration === 1 ? 'hour' : 'hours')}
+                        {request.selectedPrice || request.rentalPricePerDay || 0}/{(request.priceUnit || 'day') === 'day' ? 'day' : 'hr'} rental • {request.duration || request.rentalDays || 1} {(request.priceUnit || 'day') === 'day' ? ((request.duration || request.rentalDays || 1) === 1 ? 'day' : 'days') : ((request.duration || request.rentalDays || 1) === 1 ? 'hour' : 'hours')}
                     </p>
 
                     {request.message && (
